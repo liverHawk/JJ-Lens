@@ -9,6 +9,8 @@ export interface SimNode {
 	id: string;
 	/** Parent ids. Parents that are not part of the node list are drawn as stubs. */
 	parents: string[];
+	/** Short display name (e.g. a change id); the id is shown when absent. */
+	name?: string;
 	label?: string;
 	workingCopy?: boolean;
 	immutable?: boolean;
@@ -364,6 +366,7 @@ function split(graph: Graph, op: Extract<SimOp, { kind: 'split' }>): void {
 	const rest = graph.add(
 		{
 			parents: op.parallel ? [...node.parents] : [node.id],
+			name: node.name ? `${node.name}'` : undefined,
 			label: node.label ? `${node.label} (2)` : undefined,
 			mark: 'new',
 		},
@@ -439,7 +442,17 @@ export function simulate(nodes: readonly SimNode[], op: SimOp): SimNode[] {
 		}
 		case 'duplicate': {
 			const node = graph.get(op.rev);
-			graph.add({ ...node, parents: [...node.parents], workingCopy: false, bookmarks: [], mark: 'new' }, `${node.id}'`);
+			graph.add(
+				{
+					...node,
+					name: node.name ? `${node.name}'` : undefined,
+					parents: [...node.parents],
+					workingCopy: false,
+					bookmarks: [],
+					mark: 'new',
+				},
+				`${node.id}'`,
+			);
 			break;
 		}
 		case 'parallelize':
@@ -509,4 +522,24 @@ export function lineage(nodes: readonly SimNode[], a: string, b: string): [strin
 		return [b, a];
 	}
 	return graph.ancestors(b).has(a) ? [a, b] : undefined;
+}
+
+/**
+ * The ids worth showing when previewing an operation on a large graph: the
+ * rows around the revisions involved, and the span between them when short.
+ */
+export function neighbourhood(nodes: readonly SimNode[], focus: readonly string[], radius = 2): Set<string> {
+	const rows = focus.map((id) => nodes.findIndex((n) => n.id === id)).filter((row) => row !== -1);
+	const keep = new Set<string>();
+	const add = (from: number, to: number) => {
+		for (let row = Math.max(0, from); row <= Math.min(nodes.length - 1, to); row++) {
+			keep.add(nodes[row].id);
+		}
+	};
+	if (rows.length && Math.max(...rows) - Math.min(...rows) <= 24) {
+		add(Math.min(...rows) - radius, Math.max(...rows) + radius);
+	} else {
+		rows.forEach((row) => add(row - radius, row + radius));
+	}
+	return keep;
 }
