@@ -544,8 +544,8 @@ export const CONCEPTS: Concept[] = [
 				en: 'There is no staging area. Choosing what goes in is done with jj split / jj squash',
 			},
 			{
-				ja: 'git stash が不要。別の作業をしたければ jj new <移動先> するだけで、今の変更は @ だったコミットに残る',
-				en: 'No git stash. To work on something else just run jj new <target>; your changes stay in the commit that was @',
+				ja: 'git stash に当たるコマンドはなく、そもそも退避が要らない。jj new <移動先> で別の場所に移っても、今の変更は元のコミットに入ったままログに残る。戻るときは jj edit <change_id>',
+				en: 'There is no equivalent of git stash, because nothing needs setting aside. After jj new <target> your changes are still in the commit they were in, visible in the log. Go back with jj edit <change_id>',
 			},
 			{
 				ja: '「コミットし忘れ」が起きない。作業は常にどこかのコミットに入っている',
@@ -759,8 +759,8 @@ export const ATLAS: AtlasCommand[] = [
 		command: 'jj new',
 		summary: { ja: '新しい空の変更を作り、@ をそこへ移す', en: 'Create a new empty change and move @ to it' },
 		usage: {
-			ja: '次の作業を始めるとき。別のリビジョンの上で作業したいときは jj new <rev>。git checkout / git stash の代わりにもなる。',
-			en: 'When you start the next piece of work. Use jj new <rev> to work on top of another revision; it also replaces git checkout / git stash.',
+			ja: '次の作業を始めるとき。別のリビジョンの上で作業したいときは jj new <rev>(git switch に近い)。元の変更は退避されるのではなく、元のコミットにそのまま残る。',
+			en: 'When you start the next piece of work. Use jj new <rev> to work on top of another revision (close to git switch). Your earlier changes are not stashed: they simply stay in their own commit.',
 		},
 		options: [
 			{ flag: 'jj new <rev>', text: { ja: '指定したリビジョンの上に作る', en: 'create it on top of that revision' } },
@@ -1188,11 +1188,11 @@ export interface GitComparison {
 export const GIT_COMPARISON: GitComparison[] = [
 	{
 		goal: { ja: '作業を一時退避して別作業へ', en: 'Set work aside and do something else' },
-		git: 'git stash / git checkout',
-		jj: 'jj new <target>',
+		git: 'git stash → git switch <branch> → … → git stash pop',
+		jj: 'jj new <target> → … → jj edit <change_id>',
 		note: {
-			ja: '@ はすでにコミットなので退避不要。別コミット上で jj new するだけ',
-			en: '@ is already a commit, so nothing to stash. Just jj new on the other commit',
+			ja: 'jj new は stash の言い換えではない。@ はすでにコミットなので退避という手順自体がなくなる。変更は元のコミットに残り、jj edit <change_id> でそこへ戻る',
+			en: 'jj new is not a stash. Because @ is already a commit, the stashing step disappears: your changes stay in their commit, and jj edit <change_id> takes you back to it',
 		},
 		atlas: 'new',
 	},

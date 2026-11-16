@@ -833,7 +833,7 @@ export function renderRecipes(lang: Lang): string {
 		(row) =>
 			`<tr><th scope="row">${esc(t(row.goal))}</th>` +
 			`<td><code>${esc(row.git)}</code></td>` +
-			`<td${cliAttr(lang, row.jj.split(' / ')[0])}><code class="jj">${esc(row.jj)}</code></td>` +
+			`<td${cliAttr(lang, row.jj.split(/ [/→] /)[0])}><code class="jj">${esc(row.jj)}</code></td>` +
 			`<td>${esc(t(row.note))}` +
 			(row.atlas
 				? ` <button type="button" class="link"${msgAttr({ type: 'goto', tab: 'atlas', section: `cmd-${row.atlas}` })}>→ ${esc(t(UI.commandsTitle))}</button>`
