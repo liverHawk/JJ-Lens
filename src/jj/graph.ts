@@ -232,11 +232,13 @@ class Graph {
 	/** Removes a node, attaching its children to its parents. */
 	remove(id: string): void {
 		const node = this.get(id);
-		for (const child of this.children(id)) {
+		const children = this.children(id);
+		for (const child of children) {
 			child.parents = unique(child.parents.flatMap((p) => (p === id ? node.parents : [p])));
-			child.mark ??= 'changed';
 		}
 		this.nodes.splice(this.nodes.indexOf(node), 1);
+		// Everything that sat on top of the node is rebased.
+		children.forEach((child) => this.mark(this.descendants(child.id), 'changed'));
 	}
 
 	moveWorkingCopy(to: SimNode): void {
@@ -268,12 +270,14 @@ function rebase(graph: Graph, op: Extract<SimOp, { kind: 'rebase' }>): void {
 	}
 	if (op.mode === 'r') {
 		// Pull the revision out; its children are reattached to its parents.
-		for (const child of graph.children(source.id)) {
+		const children = graph.children(source.id);
+		for (const child of children) {
 			child.parents = unique(child.parents.flatMap((p) => (p === source.id ? source.parents : [p])));
-			child.mark = 'changed';
 		}
 		source.parents = [op.onto];
 		source.mark = 'moved';
+		// Everything that sat on top of the revision is rebased.
+		children.forEach((child) => graph.mark(graph.descendants(child.id), 'changed'));
 		return;
 	}
 	if (graph.descendants(source.id).has(op.onto)) {
@@ -383,6 +387,7 @@ function split(graph: Graph, op: Extract<SimOp, { kind: 'split' }>): void {
 	if (node.workingCopy && !op.parallel) {
 		graph.moveWorkingCopy(rest);
 	}
+	graph.mark(graph.descendants(node.id), 'changed');
 }
 
 /**

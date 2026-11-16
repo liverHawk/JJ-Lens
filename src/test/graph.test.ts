@@ -122,7 +122,7 @@ suite('operation simulation', () => {
 	test('rebase -r moves one revision and reattaches its children', () => {
 		const after = simulate(LINE, { kind: 'rebase', mode: 'r', source: 'B', onto: 'D' });
 		assert.deepStrictEqual(shape(after), { A: [], C: ['A'], D: ['C'], B: ['D'] });
-		assert.deepStrictEqual(marks(after), { B: 'moved', C: 'changed' });
+		assert.deepStrictEqual(marks(after), { B: 'moved', C: 'changed', D: 'changed' });
 		assert.deepStrictEqual(
 			after.map((n) => n.id),
 			['B', 'D', 'C', 'A'],

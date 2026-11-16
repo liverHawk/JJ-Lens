@@ -187,9 +187,10 @@ export function renderGraphSvg(nodes: readonly SimNode[]): string {
 					`<text class="g-pill-text ${kind}" x="${x + 6}" y="${y + 3.5}">${esc(bookmark)}</text>`;
 				x += w + 6;
 			}
-			if (node.label) {
-				out += `<text class="g-label" x="${x}" y="${y + 4}">${esc(node.label)}</text>`;
-				x += textWidth(node.label, 6.6);
+			const label = node.label && node.label.length > 64 ? `${node.label.slice(0, 63)}…` : node.label;
+			if (label) {
+				out += `<text class="g-label" x="${x}" y="${y + 4}">${esc(label)}</text>`;
+				x += textWidth(label, 6.6);
 			}
 			if (node.empty && !node.label) {
 				out += `<text class="g-label dim" x="${x}" y="${y + 4}">(empty)</text>`;
@@ -216,7 +217,7 @@ export function revisionNodes(revisions: readonly Revision[]): SimNode[] {
 		id: rev.commitId,
 		name: rev.changeId.slice(0, 8),
 		parents: rev.parents,
-		label: subject(rev.description),
+		label: subject(rev.description) || (rev.root ? 'root()' : undefined),
 		workingCopy: rev.workingCopy,
 		immutable: rev.immutable,
 		conflict: rev.conflict,
@@ -620,7 +621,7 @@ const OPS_DIAGRAM = {
 function operationsDiagram(lang: Lang): string {
 	const boxes = [0, 1, 2]
 		.map((i) => {
-			const x = 10 + i * 190;
+			const x = 10 + i * 210;
 			const last = i === 2;
 			return (
 				`<rect class="d-box${last ? ' now' : ''}" x="${x}" y="34" width="120" height="40" rx="6"/>` +
@@ -630,22 +631,22 @@ function operationsDiagram(lang: Lang): string {
 		.join('');
 	const arrows = ['jj describe', 'jj rebase']
 		.map((label, i) => {
-			const x = 130 + i * 190;
+			const x = 130 + i * 210;
 			return (
-				`<path class="d-arrow" d="M${x + 4} 54H${x + 62}" marker-end="url(#arrow)"/>` +
-				`<text class="d-code" x="${x + 35}" y="46" text-anchor="middle">${label}</text>`
+				`<path class="d-arrow" d="M${x + 4} 54H${x + 82}" marker-end="url(#arrow)"/>` +
+				`<text class="d-code" x="${x + 45}" y="46" text-anchor="middle">${label}</text>`
 			);
 		})
 		.join('');
 	return (
-		`<svg class="diagram" xmlns="http://www.w3.org/2000/svg" width="520" height="150" viewBox="0 0 520 150" role="img">` +
+		`<svg class="diagram" xmlns="http://www.w3.org/2000/svg" width="570" height="160" viewBox="0 0 570 160" role="img">` +
 		`<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="d-head" d="M0 0L10 5L0 10z"/></marker></defs>` +
 		boxes +
 		arrows +
-		`<path class="d-arrow back" d="M440 76C440 104 260 104 260 78" marker-end="url(#arrow)"/>` +
-		`<text class="d-code" x="350" y="112" text-anchor="middle">${esc(tr(lang, OPS_DIAGRAM.undo))}</text>` +
-		`<path class="d-arrow back" d="M460 76C460 142 70 142 70 78" marker-end="url(#arrow)"/>` +
-		`<text class="d-code" x="200" y="140" text-anchor="middle">${esc(tr(lang, OPS_DIAGRAM.restore))}</text>` +
+		`<path class="d-arrow back" d="M480 76C480 106 280 106 280 78" marker-end="url(#arrow)"/>` +
+		`<text class="d-code" x="380" y="116" text-anchor="middle">${esc(tr(lang, OPS_DIAGRAM.undo))}</text>` +
+		`<path class="d-arrow back" d="M510 76C510 150 70 150 70 78" marker-end="url(#arrow)"/>` +
+		`<text class="d-code" x="250" y="152" text-anchor="middle">${esc(tr(lang, OPS_DIAGRAM.restore))}</text>` +
 		`</svg>`
 	);
 }
