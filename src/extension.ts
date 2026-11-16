@@ -6,6 +6,7 @@ import { Repository } from './repository';
 import { StatusBar } from './statusbar';
 import { CONTENT_SCHEME, ContentProvider, GuideProvider, WorkingCopyProvider } from './views';
 import { Lang } from './webview/guideContent';
+import { StudioPanel } from './webview/studioPanel';
 
 const LANG_KEY = 'jj-lens.lang';
 
@@ -43,6 +44,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		}
 		workingCopyProvider.update(workingCopy);
 		statusBar.update(workingCopy);
+		await studio.refresh();
 	};
 
 	const detectRepository = async () => {
@@ -71,16 +73,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		},
 		refresh: () => void refresh(),
 		output,
-		openStudio: () => {
-			void vscode.window.showInformationMessage('JJ Lens Studio is not available yet.');
-		},
+		openStudio: (tab, section) => studio.open(tab, section),
 	};
+	const studio = new StudioPanel(commandContext, context.extensionUri, {
+		get: getLang,
+		set: async (lang) => {
+			await context.globalState.update(LANG_KEY, lang);
+			guideProvider.refresh();
+			await refresh();
+		},
+	});
 
 	context.subscriptions.push(
 		output,
 		workingCopyView,
 		guideView,
 		statusBar,
+		studio,
 		{ dispose: () => repo?.dispose() },
 		vscode.workspace.registerTextDocumentContentProvider(CONTENT_SCHEME, new ContentProvider(getRepo)),
 		registerCommands(commandContext),

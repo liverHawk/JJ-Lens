@@ -192,6 +192,10 @@ export const UI = {
 		en: 'Click a file name for its diff. Tick files to split, move or discard just those.',
 	},
 	selectFilesFirst: { ja: '先にファイルをチェックしてください。', en: 'Tick one or more files first.' },
+	splitNeedsRest: {
+		ja: '残す側にも 1 つ以上ファイルが必要です(全部は選べません)。',
+		en: 'Leave at least one file in the remaining change.',
+	},
 	splitTitle: { ja: '別コミットへ分割(jj split)', en: 'Split into a Separate Change (jj split)' },
 	splitMessage: { ja: '分割したコミットの説明', en: 'Description of the split-off change' },
 	splitParallel: { ja: '並列(兄弟)にする', en: 'Make them siblings (parallel)' },
