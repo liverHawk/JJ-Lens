@@ -1,26 +1,77 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
+import { registerCommands } from './commands';
+import { Jj } from './jj/cli';
+import { Repository } from './repository';
+import { CONTENT_SCHEME, ContentProvider, LogProvider, OperationProvider } from './views';
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
+	const output = vscode.window.createOutputChannel('JJ Lens');
+	const jj = new Jj(
+		() => vscode.workspace.getConfiguration('jj-lens').get('jjPath', 'jj') || 'jj',
+		(line) => output.appendLine(line),
+	);
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "jj-lens" is now active!');
+	let repo: Repository | undefined;
+	const getRepo = () => repo;
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('jj-lens.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from JJ Lens!');
-	});
+	const logProvider = new LogProvider(getRepo);
+	const opProvider = new OperationProvider(getRepo);
+	const logView = vscode.window.createTreeView('jj-lens.log', { treeDataProvider: logProvider });
+	const opView = vscode.window.createTreeView('jj-lens.operations', { treeDataProvider: opProvider });
 
-	context.subscriptions.push(disposable);
+	const refresh = () => {
+		logView.description = vscode.workspace.getConfiguration('jj-lens').get('revset', '') || undefined;
+		logProvider.refresh();
+		opProvider.refresh();
+	};
+
+	const detectRepository = async () => {
+		repo?.dispose();
+		repo = undefined;
+		for (const folder of vscode.workspace.workspaceFolders ?? []) {
+			if (folder.uri.scheme !== 'file') {
+				continue;
+			}
+			const root = await Repository.detect(jj, folder.uri.fsPath);
+			if (root) {
+				repo = new Repository(root, jj);
+				repo.onDidChange(refresh);
+				break;
+			}
+		}
+		await vscode.commands.executeCommand('setContext', 'jj-lens.hasRepo', repo !== undefined);
+		refresh();
+	};
+
+	context.subscriptions.push(
+		output,
+		logView,
+		opView,
+		{ dispose: () => repo?.dispose() },
+		vscode.workspace.registerTextDocumentContentProvider(CONTENT_SCHEME, new ContentProvider(getRepo)),
+		registerCommands({ repo: getRepo, log: logProvider, refresh, output }),
+		vscode.workspace.onDidChangeWorkspaceFolders(detectRepository),
+		vscode.workspace.onDidChangeConfiguration((event) => {
+			if (event.affectsConfiguration('jj-lens.jjPath')) {
+				void detectRepository();
+			} else if (event.affectsConfiguration('jj-lens')) {
+				refresh();
+			}
+		}),
+		// jj only notices working-copy edits when a command runs, so nudge it on save and refocus.
+		vscode.workspace.onDidSaveTextDocument((document) => {
+			if (repo?.contains(document.uri)) {
+				repo.notifyChanged();
+			}
+		}),
+		vscode.window.onDidChangeWindowState((state) => {
+			if (state.focused) {
+				repo?.notifyChanged();
+			}
+		}),
+	);
+
+	await detectRepository();
 }
 
-// This method is called when your extension is deactivated
-export function deactivate() {}
+export function deactivate(): void {}

@@ -1,9 +1,7 @@
 # Change Log
 
-All notable changes to the "jj-lens" extension will be documented in this file.
-
-Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
-
 ## [Unreleased]
 
-- Initial release
+- Log view with per-revision changed files and diffs.
+- Revision actions: new, edit, describe, abandon, duplicate, squash, rebase, bookmarks, git fetch/push, undo.
+- Operations view with restore.

@@ -1,44 +1,388 @@
 {
-  "name": "jj-lens",
-  "displayName": "JJ Lens",
-  "description": "about jujutsu gui",
-  "version": "0.0.1",
-  "engines": {
-    "vscode": "^1.146.0"
-  },
-  "categories": [
-    "Other"
-  ],
-  "activationEvents": [],
-  "main": "./out/extension.js",
-  "contributes": {
-    "commands": [
-      {
-        "command": "jj-lens.helloWorld",
-        "title": "Hello World"
-      }
-    ]
-  },
-  "scripts": {
-    "vscode:prepublish": "pnpm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "pretest": "pnpm run compile && pnpm run lint",
-    "lint": "eslint src",
-    "test": "vscode-test"
-  },
-  "devDependencies": {
-    "@types/vscode": "^1.146.0",
-    "@types/mocha": "^10.0.10",
-    "@types/node": "24.x",
-    "typescript-eslint": "^8.61.1",
-    "eslint": "^10.5.0",
-    "typescript": "^6.0.3",
-    "@vscode/test-cli": "^0.0.15",
-    "@vscode/test-electron": "^3.0.0"
-  },
-  "overrides": {
-    "diff": "^8.0.4",
-    "serialize-javascript": "^7.0.6"
-  }
+	"name": "jj-lens",
+	"displayName": "JJ Lens",
+	"version": "0.0.1",
+	"description": "Browse the Jujutsu (jj) log, inspect changes, and run jj actions from VS Code.",
+	"categories": [
+		"Other",
+		"SCM Providers"
+	],
+	"keywords": [
+		"jj",
+		"jujutsu",
+		"scm",
+		"vcs"
+	],
+	"main": "./out/extension.js",
+	"scripts": {
+		"vscode:prepublish": "pnpm run compile",
+		"compile": "tsc -p ./",
+		"watch": "tsc -watch -p ./",
+		"pretest": "pnpm run compile && pnpm run lint",
+		"lint": "oxlint src",
+		"test": "vscode-test",
+		"typecheck": "tsgo -p ./ --noEmit",
+		"format": "oxfmt",
+		"format:check": "oxfmt --check"
+	},
+	"devDependencies": {
+		"@types/mocha": "^10.0.10",
+		"@types/node": "24.x",
+		"@types/vscode": "^1.146.0",
+		"@typescript/native-preview": "7.0.0-dev.20260707.2",
+		"@vscode/test-cli": "^0.0.15",
+		"@vscode/test-electron": "^3.0.0",
+		"oxfmt": "^0.78.0",
+		"oxlint": "^1.93.0",
+		"typescript": "^6.0.3"
+	},
+	"overrides": {
+		"diff": "^8.0.4",
+		"serialize-javascript": "^7.0.6"
+	},
+	"contributes": {
+		"commands": [
+			{
+				"command": "jj-lens.refresh",
+				"title": "Refresh",
+				"category": "JJ Lens",
+				"icon": "$(refresh)"
+			},
+			{
+				"command": "jj-lens.new",
+				"title": "New Change",
+				"category": "JJ Lens",
+				"icon": "$(add)"
+			},
+			{
+				"command": "jj-lens.edit",
+				"title": "Edit (Make Working Copy)",
+				"category": "JJ Lens",
+				"icon": "$(target)"
+			},
+			{
+				"command": "jj-lens.describe",
+				"title": "Describe…",
+				"category": "JJ Lens",
+				"icon": "$(edit)"
+			},
+			{
+				"command": "jj-lens.abandon",
+				"title": "Abandon",
+				"category": "JJ Lens",
+				"icon": "$(trash)"
+			},
+			{
+				"command": "jj-lens.squash",
+				"title": "Squash into Parent",
+				"category": "JJ Lens",
+				"icon": "$(fold-down)"
+			},
+			{
+				"command": "jj-lens.duplicate",
+				"title": "Duplicate",
+				"category": "JJ Lens"
+			},
+			{
+				"command": "jj-lens.rebase",
+				"title": "Rebase…",
+				"category": "JJ Lens"
+			},
+			{
+				"command": "jj-lens.bookmarkSet",
+				"title": "Create or Move Bookmark Here…",
+				"category": "JJ Lens",
+				"icon": "$(bookmark)"
+			},
+			{
+				"command": "jj-lens.bookmarkDelete",
+				"title": "Delete Bookmark…",
+				"category": "JJ Lens"
+			},
+			{
+				"command": "jj-lens.copyChangeId",
+				"title": "Copy Change ID",
+				"category": "JJ Lens"
+			},
+			{
+				"command": "jj-lens.copyCommitId",
+				"title": "Copy Commit ID",
+				"category": "JJ Lens"
+			},
+			{
+				"command": "jj-lens.gitFetch",
+				"title": "Git Fetch",
+				"category": "JJ Lens",
+				"icon": "$(repo-pull)"
+			},
+			{
+				"command": "jj-lens.gitPush",
+				"title": "Git Push",
+				"category": "JJ Lens",
+				"icon": "$(repo-push)"
+			},
+			{
+				"command": "jj-lens.gitPushRevision",
+				"title": "Git Push This Revision…",
+				"category": "JJ Lens"
+			},
+			{
+				"command": "jj-lens.undo",
+				"title": "Undo Last Operation",
+				"category": "JJ Lens",
+				"icon": "$(discard)"
+			},
+			{
+				"command": "jj-lens.setRevset",
+				"title": "Set Log Revset…",
+				"category": "JJ Lens",
+				"icon": "$(filter)"
+			},
+			{
+				"command": "jj-lens.opRestore",
+				"title": "Restore to This Operation…",
+				"category": "JJ Lens"
+			},
+			{
+				"command": "jj-lens.openDiff",
+				"title": "Open Changes",
+				"category": "JJ Lens"
+			},
+			{
+				"command": "jj-lens.openFile",
+				"title": "Open File",
+				"category": "JJ Lens",
+				"icon": "$(go-to-file)"
+			},
+			{
+				"command": "jj-lens.restoreFile",
+				"title": "Discard Changes to File…",
+				"category": "JJ Lens",
+				"icon": "$(discard)"
+			}
+		],
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "jj-lens",
+					"title": "JJ Lens",
+					"icon": "resources/icon.svg"
+				}
+			]
+		},
+		"views": {
+			"jj-lens": [
+				{
+					"id": "jj-lens.log",
+					"name": "Log",
+					"icon": "resources/icon.svg"
+				},
+				{
+					"id": "jj-lens.operations",
+					"name": "Operations",
+					"icon": "resources/icon.svg",
+					"visibility": "collapsed"
+				}
+			]
+		},
+		"viewsWelcome": [
+			{
+				"view": "jj-lens.log",
+				"contents": "No Jujutsu repository was found in this workspace.\nRun `jj git init` (or `jj git init --colocate` in a Git repository), then refresh.\n[Refresh](command:jj-lens.refresh)",
+				"when": "!jj-lens.hasRepo"
+			}
+		],
+		"menus": {
+			"commandPalette": [
+				{
+					"command": "jj-lens.opRestore",
+					"when": "false"
+				},
+				{
+					"command": "jj-lens.openDiff",
+					"when": "false"
+				},
+				{
+					"command": "jj-lens.openFile",
+					"when": "false"
+				},
+				{
+					"command": "jj-lens.restoreFile",
+					"when": "false"
+				}
+			],
+			"view/title": [
+				{
+					"command": "jj-lens.new",
+					"when": "view == jj-lens.log",
+					"group": "navigation@1"
+				},
+				{
+					"command": "jj-lens.gitFetch",
+					"when": "view == jj-lens.log",
+					"group": "navigation@2"
+				},
+				{
+					"command": "jj-lens.gitPush",
+					"when": "view == jj-lens.log",
+					"group": "navigation@3"
+				},
+				{
+					"command": "jj-lens.undo",
+					"when": "view == jj-lens.log",
+					"group": "navigation@4"
+				},
+				{
+					"command": "jj-lens.refresh",
+					"when": "view == jj-lens.log",
+					"group": "navigation@5"
+				},
+				{
+					"command": "jj-lens.setRevset",
+					"when": "view == jj-lens.log",
+					"group": "1_filter@1"
+				},
+				{
+					"command": "jj-lens.refresh",
+					"when": "view == jj-lens.operations",
+					"group": "navigation"
+				},
+				{
+					"command": "jj-lens.undo",
+					"when": "view == jj-lens.operations",
+					"group": "navigation"
+				}
+			],
+			"view/item/context": [
+				{
+					"command": "jj-lens.describe",
+					"when": "view == jj-lens.log && viewItem =~ /^revision\\.mut/",
+					"group": "inline@1"
+				},
+				{
+					"command": "jj-lens.edit",
+					"when": "view == jj-lens.log && viewItem =~ /^revision\\.mut/",
+					"group": "inline@2"
+				},
+				{
+					"command": "jj-lens.new",
+					"when": "view == jj-lens.log && viewItem =~ /^revision\\./",
+					"group": "1_change@1"
+				},
+				{
+					"command": "jj-lens.edit",
+					"when": "view == jj-lens.log && viewItem =~ /^revision\\.mut/",
+					"group": "1_change@2"
+				},
+				{
+					"command": "jj-lens.describe",
+					"when": "view == jj-lens.log && viewItem =~ /^revision\\.mut/",
+					"group": "1_change@3"
+				},
+				{
+					"command": "jj-lens.squash",
+					"when": "view == jj-lens.log && viewItem =~ /^revision\\.mut/",
+					"group": "2_rewrite@1"
+				},
+				{
+					"command": "jj-lens.rebase",
+					"when": "view == jj-lens.log && viewItem =~ /^revision\\.mut/",
+					"group": "2_rewrite@2"
+				},
+				{
+					"command": "jj-lens.duplicate",
+					"when": "view == jj-lens.log && viewItem =~ /^revision\\./",
+					"group": "2_rewrite@3"
+				},
+				{
+					"command": "jj-lens.abandon",
+					"when": "view == jj-lens.log && viewItem =~ /^revision\\.mut/",
+					"group": "2_rewrite@4"
+				},
+				{
+					"command": "jj-lens.bookmarkSet",
+					"when": "view == jj-lens.log && viewItem =~ /^revision\\./",
+					"group": "3_bookmark@1"
+				},
+				{
+					"command": "jj-lens.bookmarkDelete",
+					"when": "view == jj-lens.log && viewItem =~ /^revision\\./",
+					"group": "3_bookmark@2"
+				},
+				{
+					"command": "jj-lens.gitPushRevision",
+					"when": "view == jj-lens.log && viewItem =~ /^revision\\./",
+					"group": "3_bookmark@3"
+				},
+				{
+					"command": "jj-lens.copyChangeId",
+					"when": "view == jj-lens.log && viewItem =~ /^revision\\./",
+					"group": "9_copy@1"
+				},
+				{
+					"command": "jj-lens.copyCommitId",
+					"when": "view == jj-lens.log && viewItem =~ /^revision\\./",
+					"group": "9_copy@2"
+				},
+				{
+					"command": "jj-lens.openFile",
+					"when": "view == jj-lens.log && viewItem =~ /^file\\./ && !(viewItem =~ /removed$/)",
+					"group": "inline@1"
+				},
+				{
+					"command": "jj-lens.restoreFile",
+					"when": "view == jj-lens.log && viewItem =~ /^file\\.mut/",
+					"group": "inline@2"
+				},
+				{
+					"command": "jj-lens.openDiff",
+					"when": "view == jj-lens.log && viewItem =~ /^file\\./",
+					"group": "1_file@1"
+				},
+				{
+					"command": "jj-lens.openFile",
+					"when": "view == jj-lens.log && viewItem =~ /^file\\./ && !(viewItem =~ /removed$/)",
+					"group": "1_file@2"
+				},
+				{
+					"command": "jj-lens.restoreFile",
+					"when": "view == jj-lens.log && viewItem =~ /^file\\.mut/",
+					"group": "2_file@1"
+				},
+				{
+					"command": "jj-lens.opRestore",
+					"when": "view == jj-lens.operations && viewItem == operation",
+					"group": "1_op@1"
+				}
+			]
+		},
+		"configuration": {
+			"title": "JJ Lens",
+			"properties": {
+				"jj-lens.jjPath": {
+					"type": "string",
+					"default": "jj",
+					"scope": "machine-overridable",
+					"description": "Path to the jj executable."
+				},
+				"jj-lens.revset": {
+					"type": "string",
+					"default": "",
+					"description": "Revset shown in the log view. Leave empty to use jj's default (revsets.log)."
+				},
+				"jj-lens.logLimit": {
+					"type": "integer",
+					"default": 200,
+					"minimum": 1,
+					"description": "Maximum number of revisions and operations to load."
+				}
+			}
+		}
+	},
+	"activationEvents": [
+		"workspaceContains:.jj"
+	],
+	"engines": {
+		"vscode": "^1.146.0"
+	}
 }

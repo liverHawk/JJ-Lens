@@ -1,15 +1,17 @@
 import * as assert from 'assert';
-
-// You can import and use all API from the 'vscode' module
-// as well as import your extension to test it
 import * as vscode from 'vscode';
-// import * as myExtension from '../../extension';
 
-suite('Extension Test Suite', () => {
-	vscode.window.showInformationMessage('Start all tests.');
+suite('Extension', () => {
+	test('activates and registers every contributed command', async () => {
+		const extension = vscode.extensions.all.find((e) => e.packageJSON.name === 'jj-lens');
+		assert.ok(extension, 'extension not found');
+		await extension.activate();
 
-	test('Sample test', () => {
-		assert.strictEqual(-1, [1, 2, 3].indexOf(5));
-		assert.strictEqual(-1, [1, 2, 3].indexOf(0));
+		const registered = new Set(await vscode.commands.getCommands(true));
+		const contributed: { command: string }[] = extension.packageJSON.contributes.commands;
+		assert.ok(contributed.length > 0);
+		for (const { command } of contributed) {
+			assert.ok(registered.has(command), `${command} is contributed but not registered`);
+		}
 	});
 });

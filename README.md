@@ -1,71 +1,47 @@
-# jj-lens README
+# JJ Lens
 
-This is the README for your extension "jj-lens". After writing up a brief description, we recommend including the following sections.
+Browse the [Jujutsu](https://jj-vcs.github.io/jj/) log, inspect changes, and run jj actions without leaving VS Code.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
-
-For example if there is an image subfolder under your extension project workspace:
-
-\!\[feature X\]\(images/feature-x.png\)
-
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+- **Log view** (JJ Lens icon in the activity bar): revisions from `jj log`, with change ID, bookmarks, author and age. The working copy, immutable revisions, merges and conflicts each get their own icon.
+- **Changed files**: expand a revision to see its files; click one to open a diff. Files in the working copy open against the file on disk, so the right side stays editable.
+- **Actions** from the view toolbar, the revision context menu, or the command palette (`JJ Lens: …`):
+  - New change, edit, describe, abandon, duplicate
+  - Squash into parent, rebase (revision, with descendants, or whole branch)
+  - Create/move/delete bookmarks
+  - Git fetch, git push (all tracked bookmarks, or one revision)
+  - Discard the changes to a single file
+  - Undo the last operation
+- **Operations view**: the `jj op log`, with "Restore to This Operation".
+- The views refresh automatically when the repository changes, including after jj commands run in a terminal.
 
 ## Requirements
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+`jj` must be installed (developed against 0.47). The workspace folder must be inside a jj repository.
 
-## Extension Settings
+## Settings
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+| Setting            | Default | Description                                                       |
+| ------------------ | ------- | ----------------------------------------------------------------- |
+| `jj-lens.jjPath`   | `jj`    | Path to the jj executable.                                        |
+| `jj-lens.revset`   | (empty) | Revset shown in the log. Empty uses jj's default (`revsets.log`). |
+| `jj-lens.logLimit` | `200`   | Maximum number of revisions and operations to load.               |
 
-For example:
+## Known limitations
 
-This extension contributes the following settings:
+- The log is a flat list in jj's order; the commit graph is not drawn.
+- Only the first jj repository found among the workspace folders is shown.
+- Diffs of merge revisions compare against the first parent only.
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+## Development
 
-## Known Issues
+```sh
+pnpm install
+pnpm run typecheck   # tsgo
+pnpm run lint        # oxlint
+pnpm run format      # oxfmt
+pnpm test   # launches a VS Code instance; some tests need jj on PATH
+```
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+Press `F5` in VS Code to launch an Extension Development Host.
