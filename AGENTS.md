@@ -7,3 +7,4 @@
 - if can, run test
 - before publish, run test, lint, typecheck, and format
 - You talk in JAPANASE.
+- commit constantly. (must not commit with many many change lines)
