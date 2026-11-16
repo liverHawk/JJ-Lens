@@ -1,8 +1,13 @@
 import * as vscode from 'vscode';
-import { registerCommands } from './commands';
+import { CommandContext, registerCommands } from './commands';
 import { Jj } from './jj/cli';
+import { Revision } from './jj/parse';
 import { Repository } from './repository';
-import { CONTENT_SCHEME, ContentProvider, LogProvider, OperationProvider } from './views';
+import { StatusBar } from './statusbar';
+import { CONTENT_SCHEME, ContentProvider, GuideProvider, WorkingCopyProvider } from './views';
+import { Lang } from './webview/guideContent';
+
+const LANG_KEY = 'jj-lens.lang';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	const output = vscode.window.createOutputChannel('JJ Lens');
@@ -13,16 +18,31 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 	let repo: Repository | undefined;
 	const getRepo = () => repo;
+	// Japanese is the default; the Studio header switches it.
+	const getLang = (): Lang => (context.globalState.get<string>(LANG_KEY) === 'en' ? 'en' : 'ja');
 
-	const logProvider = new LogProvider(getRepo);
-	const opProvider = new OperationProvider(getRepo);
-	const logView = vscode.window.createTreeView('jj-lens.log', { treeDataProvider: logProvider });
-	const opView = vscode.window.createTreeView('jj-lens.operations', { treeDataProvider: opProvider });
+	const workingCopyProvider = new WorkingCopyProvider(getRepo, getLang);
+	const guideProvider = new GuideProvider(getLang);
+	const workingCopyView = vscode.window.createTreeView('jj-lens.workingCopy', {
+		treeDataProvider: workingCopyProvider,
+	});
+	const guideView = vscode.window.createTreeView('jj-lens.guide', { treeDataProvider: guideProvider });
+	const statusBar = new StatusBar();
 
-	const refresh = () => {
-		logView.description = vscode.workspace.getConfiguration('jj-lens').get('revset', '') || undefined;
-		logProvider.refresh();
-		opProvider.refresh();
+	let generation = 0;
+	const refresh = async () => {
+		const current = ++generation;
+		let workingCopy: Revision | undefined;
+		try {
+			workingCopy = await repo?.workingCopy();
+		} catch (error) {
+			output.appendLine(String(error));
+		}
+		if (current !== generation) {
+			return;
+		}
+		workingCopyProvider.update(workingCopy);
+		statusBar.update(workingCopy);
 	};
 
 	const detectRepository = async () => {
@@ -40,22 +60,36 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			}
 		}
 		await vscode.commands.executeCommand('setContext', 'jj-lens.hasRepo', repo !== undefined);
-		refresh();
+		await refresh();
+	};
+
+	const commandContext: CommandContext = {
+		repo: getRepo,
+		revisions: async () => {
+			const config = vscode.workspace.getConfiguration('jj-lens');
+			return (await repo?.log(config.get('revset', ''), config.get('logLimit', 200))) ?? [];
+		},
+		refresh: () => void refresh(),
+		output,
+		openStudio: () => {
+			void vscode.window.showInformationMessage('JJ Lens Studio is not available yet.');
+		},
 	};
 
 	context.subscriptions.push(
 		output,
-		logView,
-		opView,
+		workingCopyView,
+		guideView,
+		statusBar,
 		{ dispose: () => repo?.dispose() },
 		vscode.workspace.registerTextDocumentContentProvider(CONTENT_SCHEME, new ContentProvider(getRepo)),
-		registerCommands({ repo: getRepo, log: logProvider, refresh, output }),
+		registerCommands(commandContext),
 		vscode.workspace.onDidChangeWorkspaceFolders(detectRepository),
 		vscode.workspace.onDidChangeConfiguration((event) => {
 			if (event.affectsConfiguration('jj-lens.jjPath')) {
 				void detectRepository();
 			} else if (event.affectsConfiguration('jj-lens')) {
-				refresh();
+				void refresh();
 			}
 		}),
 		// jj only notices working-copy edits when a command runs, so nudge it on save and refocus.

@@ -43,6 +43,17 @@
 	"contributes": {
 		"commands": [
 			{
+				"command": "jj-lens.openStudio",
+				"title": "Open JJ Lens Studio",
+				"category": "JJ Lens",
+				"icon": "$(type-hierarchy)"
+			},
+			{
+				"command": "jj-lens.openGuideTopic",
+				"title": "Open Guide Topic",
+				"category": "JJ Lens"
+			},
+			{
 				"command": "jj-lens.refresh",
 				"title": "Refresh",
 				"category": "JJ Lens",
@@ -55,8 +66,20 @@
 				"icon": "$(add)"
 			},
 			{
+				"command": "jj-lens.newMerge",
+				"title": "New Merge Change…",
+				"category": "JJ Lens",
+				"icon": "$(git-merge)"
+			},
+			{
+				"command": "jj-lens.commit",
+				"title": "Commit (Describe @ and Start a New Change)…",
+				"category": "JJ Lens",
+				"icon": "$(check)"
+			},
+			{
 				"command": "jj-lens.edit",
-				"title": "Edit (Make Working Copy)",
+				"title": "Edit (Make Working Copy)…",
 				"category": "JJ Lens",
 				"icon": "$(target)"
 			},
@@ -68,7 +91,7 @@
 			},
 			{
 				"command": "jj-lens.abandon",
-				"title": "Abandon",
+				"title": "Abandon…",
 				"category": "JJ Lens",
 				"icon": "$(trash)"
 			},
@@ -79,8 +102,20 @@
 				"icon": "$(fold-down)"
 			},
 			{
+				"command": "jj-lens.absorb",
+				"title": "Absorb into Earlier Changes",
+				"category": "JJ Lens",
+				"icon": "$(wand)"
+			},
+			{
+				"command": "jj-lens.split",
+				"title": "Split by File…",
+				"category": "JJ Lens",
+				"icon": "$(split-vertical)"
+			},
+			{
 				"command": "jj-lens.duplicate",
-				"title": "Duplicate",
+				"title": "Duplicate…",
 				"category": "JJ Lens"
 			},
 			{
@@ -89,8 +124,13 @@
 				"category": "JJ Lens"
 			},
 			{
+				"command": "jj-lens.parallelize",
+				"title": "Parallelize…",
+				"category": "JJ Lens"
+			},
+			{
 				"command": "jj-lens.bookmarkSet",
-				"title": "Create or Move Bookmark Here…",
+				"title": "Create or Move Bookmark…",
 				"category": "JJ Lens",
 				"icon": "$(bookmark)"
 			},
@@ -123,7 +163,7 @@
 			},
 			{
 				"command": "jj-lens.gitPushRevision",
-				"title": "Git Push This Revision…",
+				"title": "Git Push a Revision…",
 				"category": "JJ Lens"
 			},
 			{
@@ -134,14 +174,9 @@
 			},
 			{
 				"command": "jj-lens.setRevset",
-				"title": "Set Log Revset…",
+				"title": "Set Graph Revset…",
 				"category": "JJ Lens",
 				"icon": "$(filter)"
-			},
-			{
-				"command": "jj-lens.opRestore",
-				"title": "Restore to This Operation…",
-				"category": "JJ Lens"
 			},
 			{
 				"command": "jj-lens.openDiff",
@@ -173,21 +208,20 @@
 		"views": {
 			"jj-lens": [
 				{
-					"id": "jj-lens.log",
-					"name": "Log",
+					"id": "jj-lens.workingCopy",
+					"name": "Working Copy (@)",
 					"icon": "resources/icon.svg"
 				},
 				{
-					"id": "jj-lens.operations",
-					"name": "Operations",
-					"icon": "resources/icon.svg",
-					"visibility": "collapsed"
+					"id": "jj-lens.guide",
+					"name": "Quick Actions & Guide",
+					"icon": "resources/icon.svg"
 				}
 			]
 		},
 		"viewsWelcome": [
 			{
-				"view": "jj-lens.log",
+				"view": "jj-lens.workingCopy",
 				"contents": "No Jujutsu repository was found in this workspace.\nRun `jj git init` (or `jj git init --colocate` in a Git repository), then refresh.\n[Refresh](command:jj-lens.refresh)",
 				"when": "!jj-lens.hasRepo"
 			}
@@ -195,7 +229,7 @@
 		"menus": {
 			"commandPalette": [
 				{
-					"command": "jj-lens.opRestore",
+					"command": "jj-lens.openGuideTopic",
 					"when": "false"
 				},
 				{
@@ -213,146 +247,156 @@
 			],
 			"view/title": [
 				{
-					"command": "jj-lens.new",
-					"when": "view == jj-lens.log",
+					"command": "jj-lens.describe",
+					"when": "view == jj-lens.workingCopy && jj-lens.hasRepo",
 					"group": "navigation@1"
 				},
 				{
-					"command": "jj-lens.gitFetch",
-					"when": "view == jj-lens.log",
+					"command": "jj-lens.commit",
+					"when": "view == jj-lens.workingCopy && jj-lens.hasRepo",
 					"group": "navigation@2"
 				},
 				{
-					"command": "jj-lens.gitPush",
-					"when": "view == jj-lens.log",
+					"command": "jj-lens.new",
+					"when": "view == jj-lens.workingCopy && jj-lens.hasRepo",
 					"group": "navigation@3"
 				},
 				{
-					"command": "jj-lens.undo",
-					"when": "view == jj-lens.log",
+					"command": "jj-lens.openStudio",
+					"when": "view == jj-lens.workingCopy && jj-lens.hasRepo",
 					"group": "navigation@4"
 				},
 				{
 					"command": "jj-lens.refresh",
-					"when": "view == jj-lens.log",
+					"when": "view == jj-lens.workingCopy && jj-lens.hasRepo",
 					"group": "navigation@5"
 				},
 				{
-					"command": "jj-lens.setRevset",
-					"when": "view == jj-lens.log",
-					"group": "1_filter@1"
+					"command": "jj-lens.squash",
+					"when": "view == jj-lens.workingCopy && jj-lens.hasRepo",
+					"group": "1_rewrite@1"
 				},
 				{
-					"command": "jj-lens.refresh",
-					"when": "view == jj-lens.operations",
-					"group": "navigation"
+					"command": "jj-lens.absorb",
+					"when": "view == jj-lens.workingCopy && jj-lens.hasRepo",
+					"group": "1_rewrite@2"
+				},
+				{
+					"command": "jj-lens.split",
+					"when": "view == jj-lens.workingCopy && jj-lens.hasRepo",
+					"group": "1_rewrite@3"
 				},
 				{
 					"command": "jj-lens.undo",
-					"when": "view == jj-lens.operations",
+					"when": "view == jj-lens.workingCopy && jj-lens.hasRepo",
+					"group": "2_safety@1"
+				},
+				{
+					"command": "jj-lens.gitFetch",
+					"when": "view == jj-lens.workingCopy && jj-lens.hasRepo",
+					"group": "3_git@1"
+				},
+				{
+					"command": "jj-lens.gitPush",
+					"when": "view == jj-lens.workingCopy && jj-lens.hasRepo",
+					"group": "3_git@2"
+				},
+				{
+					"command": "jj-lens.openStudio",
+					"when": "view == jj-lens.guide",
 					"group": "navigation"
 				}
 			],
 			"view/item/context": [
 				{
 					"command": "jj-lens.describe",
-					"when": "view == jj-lens.log && viewItem =~ /^revision\\.mut/",
+					"when": "view == jj-lens.workingCopy && viewItem =~ /^revision\\.mut/",
 					"group": "inline@1"
 				},
 				{
-					"command": "jj-lens.edit",
-					"when": "view == jj-lens.log && viewItem =~ /^revision\\.mut/",
+					"command": "jj-lens.commit",
+					"when": "view == jj-lens.workingCopy && viewItem =~ /^revision\\.mut/",
 					"group": "inline@2"
 				},
 				{
-					"command": "jj-lens.new",
-					"when": "view == jj-lens.log && viewItem =~ /^revision\\./",
+					"command": "jj-lens.describe",
+					"when": "view == jj-lens.workingCopy && viewItem =~ /^revision\\.mut/",
 					"group": "1_change@1"
 				},
 				{
-					"command": "jj-lens.edit",
-					"when": "view == jj-lens.log && viewItem =~ /^revision\\.mut/",
+					"command": "jj-lens.commit",
+					"when": "view == jj-lens.workingCopy && viewItem =~ /^revision\\.mut/",
 					"group": "1_change@2"
 				},
 				{
-					"command": "jj-lens.describe",
-					"when": "view == jj-lens.log && viewItem =~ /^revision\\.mut/",
+					"command": "jj-lens.new",
+					"when": "view == jj-lens.workingCopy && viewItem =~ /^revision\\./",
 					"group": "1_change@3"
 				},
 				{
 					"command": "jj-lens.squash",
-					"when": "view == jj-lens.log && viewItem =~ /^revision\\.mut/",
+					"when": "view == jj-lens.workingCopy && viewItem =~ /^revision\\.mut/",
 					"group": "2_rewrite@1"
 				},
 				{
-					"command": "jj-lens.rebase",
-					"when": "view == jj-lens.log && viewItem =~ /^revision\\.mut/",
+					"command": "jj-lens.absorb",
+					"when": "view == jj-lens.workingCopy && viewItem =~ /^revision\\.mut/",
 					"group": "2_rewrite@2"
 				},
 				{
-					"command": "jj-lens.duplicate",
-					"when": "view == jj-lens.log && viewItem =~ /^revision\\./",
+					"command": "jj-lens.split",
+					"when": "view == jj-lens.workingCopy && viewItem =~ /^revision\\.mut/",
 					"group": "2_rewrite@3"
 				},
 				{
-					"command": "jj-lens.abandon",
-					"when": "view == jj-lens.log && viewItem =~ /^revision\\.mut/",
-					"group": "2_rewrite@4"
-				},
-				{
 					"command": "jj-lens.bookmarkSet",
-					"when": "view == jj-lens.log && viewItem =~ /^revision\\./",
+					"when": "view == jj-lens.workingCopy && viewItem =~ /^revision\\./",
 					"group": "3_bookmark@1"
 				},
 				{
 					"command": "jj-lens.bookmarkDelete",
-					"when": "view == jj-lens.log && viewItem =~ /^revision\\./",
+					"when": "view == jj-lens.workingCopy && viewItem =~ /^revision\\./",
 					"group": "3_bookmark@2"
 				},
 				{
 					"command": "jj-lens.gitPushRevision",
-					"when": "view == jj-lens.log && viewItem =~ /^revision\\./",
+					"when": "view == jj-lens.workingCopy && viewItem =~ /^revision\\./",
 					"group": "3_bookmark@3"
 				},
 				{
 					"command": "jj-lens.copyChangeId",
-					"when": "view == jj-lens.log && viewItem =~ /^revision\\./",
+					"when": "view == jj-lens.workingCopy && viewItem =~ /^revision\\./",
 					"group": "9_copy@1"
 				},
 				{
 					"command": "jj-lens.copyCommitId",
-					"when": "view == jj-lens.log && viewItem =~ /^revision\\./",
+					"when": "view == jj-lens.workingCopy && viewItem =~ /^revision\\./",
 					"group": "9_copy@2"
 				},
 				{
 					"command": "jj-lens.openFile",
-					"when": "view == jj-lens.log && viewItem =~ /^file\\./ && !(viewItem =~ /removed$/)",
+					"when": "view == jj-lens.workingCopy && viewItem =~ /^file\\./ && !(viewItem =~ /removed$/)",
 					"group": "inline@1"
 				},
 				{
 					"command": "jj-lens.restoreFile",
-					"when": "view == jj-lens.log && viewItem =~ /^file\\.mut/",
+					"when": "view == jj-lens.workingCopy && viewItem =~ /^file\\.mut/",
 					"group": "inline@2"
 				},
 				{
 					"command": "jj-lens.openDiff",
-					"when": "view == jj-lens.log && viewItem =~ /^file\\./",
+					"when": "view == jj-lens.workingCopy && viewItem =~ /^file\\./",
 					"group": "1_file@1"
 				},
 				{
 					"command": "jj-lens.openFile",
-					"when": "view == jj-lens.log && viewItem =~ /^file\\./ && !(viewItem =~ /removed$/)",
+					"when": "view == jj-lens.workingCopy && viewItem =~ /^file\\./ && !(viewItem =~ /removed$/)",
 					"group": "1_file@2"
 				},
 				{
 					"command": "jj-lens.restoreFile",
-					"when": "view == jj-lens.log && viewItem =~ /^file\\.mut/",
+					"when": "view == jj-lens.workingCopy && viewItem =~ /^file\\.mut/",
 					"group": "2_file@1"
-				},
-				{
-					"command": "jj-lens.opRestore",
-					"when": "view == jj-lens.operations && viewItem == operation",
-					"group": "1_op@1"
 				}
 			]
 		},
@@ -368,7 +412,7 @@
 				"jj-lens.revset": {
 					"type": "string",
 					"default": "",
-					"description": "Revset shown in the log view. Leave empty to use jj's default (revsets.log)."
+					"description": "Revset shown in the JJ Lens Studio graph. Leave empty to use jj's default (revsets.log)."
 				},
 				"jj-lens.logLimit": {
 					"type": "integer",

@@ -1,10 +1,12 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { displayBookmarks, FileChange, Operation, relativeTime, Revision, revId, subject } from './jj/parse';
+import { displayBookmarks, FileChange, Revision, revId, subject } from './jj/parse';
 import { Repository } from './repository';
+import { GUIDE_LINKS, Lang, QUICK_ACTIONS, SIDEBAR, SidebarAction, tr } from './webview/guideContent';
 
 export const CONTENT_SCHEME = 'jj-lens';
 
+/** The summary row of a revision (the working copy, in the sidebar). */
 export class RevisionNode {
 	constructor(readonly rev: Revision) {}
 }
@@ -16,27 +18,15 @@ export class FileNode {
 	) {}
 }
 
-export class OperationNode {
-	constructor(readonly op: Operation) {}
+/** A row that only informs. */
+class InfoNode {
+	constructor(
+		readonly label: string,
+		readonly icon: vscode.ThemeIcon,
+	) {}
 }
 
-export type LogNode = RevisionNode | FileNode;
-
-function revisionIcon(rev: Revision): vscode.ThemeIcon {
-	if (rev.conflict) {
-		return new vscode.ThemeIcon('warning', new vscode.ThemeColor('list.errorForeground'));
-	}
-	if (rev.workingCopy) {
-		return new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('charts.green'));
-	}
-	if (rev.immutable) {
-		return new vscode.ThemeIcon('lock', new vscode.ThemeColor('descriptionForeground'));
-	}
-	if (rev.parents.length > 1) {
-		return new vscode.ThemeIcon('git-merge');
-	}
-	return new vscode.ThemeIcon('circle-outline');
-}
+export type WorkingCopyNode = RevisionNode | FileNode | InfoNode;
 
 function revisionTooltip(rev: Revision): vscode.MarkdownString {
 	const md = new vscode.MarkdownString();
@@ -62,28 +52,24 @@ function revisionTooltip(rev: Revision): vscode.MarkdownString {
 	return md;
 }
 
-function revisionItem(rev: Revision): vscode.TreeItem {
-	const title = subject(rev.description) || (rev.root ? 'root()' : '(no description set)');
-	const item = new vscode.TreeItem(
-		title,
-		rev.empty
-			? vscode.TreeItemCollapsibleState.None
-			: rev.workingCopy
-				? vscode.TreeItemCollapsibleState.Expanded
-				: vscode.TreeItemCollapsibleState.Collapsed,
-	);
-	item.id = `${rev.changeId}/${rev.divergent ? rev.commitId : ''}`;
+function revisionItem(rev: Revision, lang: Lang): vscode.TreeItem {
+	// The shortest unique prefix is what you type on the command line, so highlight it.
+	const id = rev.changeId.slice(0, 8);
+	const item = new vscode.TreeItem({
+		label: `@ ${id}`,
+		highlights: [[2, 2 + Math.min(rev.changePrefix.length, id.length)]],
+	});
 	const refs = [...displayBookmarks(rev), ...rev.tags];
 	item.description = [
-		rev.workingCopy ? '@' : '',
-		rev.changeId.slice(0, 8),
+		subject(rev.description) || tr(lang, SIDEBAR.noDescription),
 		refs.length ? `[${refs.join(', ')}]` : '',
-		rev.empty && !rev.root ? '(empty)' : '',
-		rev.root ? '' : `${rev.authorName}, ${relativeTime(rev.timestamp)}`,
+		rev.empty ? '(empty)' : '',
 	]
 		.filter(Boolean)
 		.join(' ');
-	item.iconPath = revisionIcon(rev);
+	item.iconPath = rev.conflict
+		? new vscode.ThemeIcon('warning', new vscode.ThemeColor('list.errorForeground'))
+		: new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('charts.green'));
 	item.tooltip = revisionTooltip(rev);
 	item.contextValue = ['revision', rev.immutable ? 'imm' : 'mut', rev.workingCopy ? 'wc' : '']
 		.filter(Boolean)
@@ -99,6 +85,10 @@ const STATUS_LETTER: Record<FileChange['status'], string> = {
 	renamed: 'R',
 };
 
+export function statusLetter(status: FileChange['status']): string {
+	return STATUS_LETTER[status];
+}
+
 function fileItem(root: string, node: FileNode): vscode.TreeItem {
 	const { change } = node;
 	const item = new vscode.TreeItem(vscode.Uri.file(path.join(root, change.target)));
@@ -110,76 +100,110 @@ function fileItem(root: string, node: FileNode): vscode.TreeItem {
 	return item;
 }
 
-export class LogProvider implements vscode.TreeDataProvider<LogNode> {
+/** The working copy (`@`): its summary and its changed files. */
+export class WorkingCopyProvider implements vscode.TreeDataProvider<WorkingCopyNode> {
 	private readonly emitter = new vscode.EventEmitter<void>();
 	readonly onDidChangeTreeData = this.emitter.event;
+	private rev: Revision | undefined;
 
-	/** Revisions from the most recent load, for pickers. */
-	revisions: Revision[] = [];
+	constructor(
+		private readonly repo: () => Repository | undefined,
+		private readonly lang: () => Lang,
+	) {}
 
-	constructor(private readonly repo: () => Repository | undefined) {}
-
-	refresh(): void {
+	/** Shows `rev` as the working copy. */
+	update(rev: Revision | undefined): void {
+		this.rev = rev;
 		this.emitter.fire();
 	}
 
-	getTreeItem(node: LogNode): vscode.TreeItem {
-		return node instanceof RevisionNode ? revisionItem(node.rev) : fileItem(this.repo()?.root ?? '', node);
-	}
-
-	async getChildren(node?: LogNode): Promise<LogNode[]> {
-		const repo = this.repo();
-		if (!repo || node instanceof FileNode) {
-			return [];
+	getTreeItem(node: WorkingCopyNode): vscode.TreeItem {
+		if (node instanceof RevisionNode) {
+			return revisionItem(node.rev, this.lang());
 		}
-		try {
-			if (node) {
-				const files = await repo.changedFiles(revId(node.rev));
-				return files.map((change) => new FileNode(node.rev, change));
-			}
-			const config = vscode.workspace.getConfiguration('jj-lens');
-			this.revisions = await repo.log(config.get('revset', ''), config.get('logLimit', 200));
-			return this.revisions.map((rev) => new RevisionNode(rev));
-		} catch (error) {
-			void vscode.window.showErrorMessage(`JJ Lens: ${error instanceof Error ? error.message : error}`);
-			return [];
+		if (node instanceof FileNode) {
+			return fileItem(this.repo()?.root ?? '', node);
 		}
-	}
-}
-
-export class OperationProvider implements vscode.TreeDataProvider<OperationNode> {
-	private readonly emitter = new vscode.EventEmitter<void>();
-	readonly onDidChangeTreeData = this.emitter.event;
-
-	constructor(private readonly repo: () => Repository | undefined) {}
-
-	refresh(): void {
-		this.emitter.fire();
-	}
-
-	getTreeItem({ op }: OperationNode): vscode.TreeItem {
-		const item = new vscode.TreeItem(subject(op.description) || '(no description)');
-		item.description = `${op.id.slice(0, 8)} ${relativeTime(op.time)}`;
-		item.tooltip = `${op.id}\n${op.user}\n${new Date(op.time).toLocaleString()}\n\n${op.description}`;
-		item.iconPath = op.current
-			? new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('charts.green'))
-			: new vscode.ThemeIcon('history');
-		item.contextValue = op.current ? 'operation.current' : 'operation';
+		const item = new vscode.TreeItem(node.label);
+		item.iconPath = node.icon;
 		return item;
 	}
 
-	async getChildren(node?: OperationNode): Promise<OperationNode[]> {
+	async getChildren(node?: WorkingCopyNode): Promise<WorkingCopyNode[]> {
 		const repo = this.repo();
-		if (!repo || node) {
+		const rev = this.rev;
+		if (!repo || !rev || node) {
 			return [];
+		}
+		const nodes: WorkingCopyNode[] = [new RevisionNode(rev)];
+		if (rev.conflict) {
+			nodes.push(
+				new InfoNode(
+					tr(this.lang(), SIDEBAR.conflict),
+					new vscode.ThemeIcon('warning', new vscode.ThemeColor('list.errorForeground')),
+				),
+			);
 		}
 		try {
-			const limit = vscode.workspace.getConfiguration('jj-lens').get('logLimit', 200);
-			return (await repo.opLog(limit)).map((op) => new OperationNode(op));
+			const files = await repo.changedFiles(revId(rev));
+			if (files.length) {
+				nodes.push(...files.map((change) => new FileNode(rev, change)));
+			} else {
+				nodes.push(new InfoNode(tr(this.lang(), SIDEBAR.noChanges), new vscode.ThemeIcon('dash')));
+			}
 		} catch (error) {
 			void vscode.window.showErrorMessage(`JJ Lens: ${error instanceof Error ? error.message : error}`);
-			return [];
 		}
+		return nodes;
+	}
+}
+
+type GuideNode =
+	| { kind: 'action'; action: SidebarAction }
+	| { kind: 'group'; label: string; icon: string; children: GuideNode[] };
+
+const actions = (list: SidebarAction[]): GuideNode[] => list.map((action) => ({ kind: 'action', action }));
+
+/** Launcher for JJ Lens Studio, everyday actions and the illustrated guides. */
+export class GuideProvider implements vscode.TreeDataProvider<GuideNode> {
+	private readonly emitter = new vscode.EventEmitter<void>();
+	readonly onDidChangeTreeData = this.emitter.event;
+
+	constructor(private readonly lang: () => Lang) {}
+
+	refresh(): void {
+		this.emitter.fire();
+	}
+
+	getTreeItem(node: GuideNode): vscode.TreeItem {
+		if (node.kind === 'group') {
+			const item = new vscode.TreeItem(node.label, vscode.TreeItemCollapsibleState.Expanded);
+			item.iconPath = new vscode.ThemeIcon(node.icon);
+			return item;
+		}
+		const { action } = node;
+		const title = tr(this.lang(), action.label);
+		const item = new vscode.TreeItem(title);
+		item.iconPath = new vscode.ThemeIcon(action.icon);
+		item.description = action.cli;
+		item.tooltip = action.cli ? `${title}\n${action.cli}` : title;
+		item.command = { command: action.command, title, arguments: action.args };
+		return item;
+	}
+
+	getChildren(node?: GuideNode): GuideNode[] {
+		if (node) {
+			return node.kind === 'group' ? node.children : [];
+		}
+		const lang = this.lang();
+		return [
+			{
+				kind: 'action',
+				action: { label: SIDEBAR.openStudio, icon: 'type-hierarchy', command: 'jj-lens.openStudio' },
+			},
+			{ kind: 'group', label: tr(lang, SIDEBAR.quickActions), icon: 'zap', children: actions(QUICK_ACTIONS) },
+			{ kind: 'group', label: tr(lang, SIDEBAR.guides), icon: 'mortar-board', children: actions(GUIDE_LINKS) },
+		];
 	}
 }
 
