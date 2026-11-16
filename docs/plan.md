@@ -148,15 +148,15 @@ flowchart LR
 
 #### (1) Git vs Jujutsu 対応比較表
 
-| やりたいこと                           | Git でのコマンド                                 | Jujutsu (`jj`) でのやり方                                   | 図解・ポイント解説                                                                                                                     |
-| :------------------------------------- | :----------------------------------------------- | :---------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------- |
-| 作業を一時退避して別作業へ             | `git stash` → `git switch` → … → `git stash pop` | `jj new <target>` → … → `jj edit <change_id>`               | `jj new` は stash の言い換えではない。`@` はすでにコミットなので退避の手順自体が不要で、変更は元のコミットに残る。戻るときは `jj edit` |
-| 直前のコミットに修正を混ぜる           | `git add -p && git commit --amend`               | `jj squash`                                                 | `@` の変更を親 `@-` に流し込む（ファイル指定も可）                                                                                     |
-| 3つ前のコミットを直接直す              | `git rebase -i HEAD~4`                           | `jj edit <change_id>` または `jj squash --into <change_id>` | 子孫は自動でリベースされるため対話的リベース不要                                                                                       |
-| 変更を適切な過去コミットへ自動振り分け | `git commit --fixup` + `autosquash`              | `jj absorb`                                                 | 変更した行を最後に触った祖先コミットへ自動吸収                                                                                         |
-| コミットを2つに分割する                | `git reset HEAD~` -> `git add -p`                | `jj split`                                                  | GUI でファイルを選んで分割可能                                                                                                         |
-| 操作ミスを取り消す                     | `git reflog` -> `git reset --hard`               | `jj undo` / `jj op restore`                                 | リポジトリ全体の状態履歴から安全に1コマンドで復元                                                                                      |
-| PR 用のブランチを作って Push           | `git switch -c feat && git push -u`              | `jj git push --change @` (または `bookmark set`)            | 自動生成ブックマークまたは任意名で即 Push                                                                                              |
+| やりたいこと                           | Git でのコマンド                    | Jujutsu (`jj`) でのやり方                                   | 図解・ポイント解説                                                                                   |
+| :------------------------------------- | :---------------------------------- | :---------------------------------------------------------- | :--------------------------------------------------------------------------------------------------- |
+| 作業を一時退避して別作業へ             | `git stash` → … → `git stash pop`   | `jj new @-` → … → `jj edit <change_id>`                     | `jj new @-` が stash に当たる。変更は元のコミットに残り、親の上に空の `@` ができる。`jj edit` で戻る |
+| 直前のコミットに修正を混ぜる           | `git add -p && git commit --amend`  | `jj squash`                                                 | `@` の変更を親 `@-` に流し込む（ファイル指定も可）                                                   |
+| 3つ前のコミットを直接直す              | `git rebase -i HEAD~4`              | `jj edit <change_id>` または `jj squash --into <change_id>` | 子孫は自動でリベースされるため対話的リベース不要                                                     |
+| 変更を適切な過去コミットへ自動振り分け | `git commit --fixup` + `autosquash` | `jj absorb`                                                 | 変更した行を最後に触った祖先コミットへ自動吸収                                                       |
+| コミットを2つに分割する                | `git reset HEAD~` -> `git add -p`   | `jj split`                                                  | GUI でファイルを選んで分割可能                                                                       |
+| 操作ミスを取り消す                     | `git reflog` -> `git reset --hard`  | `jj undo` / `jj op restore`                                 | リポジトリ全体の状態履歴から安全に1コマンドで復元                                                    |
+| PR 用のブランチを作って Push           | `git switch -c feat && git push -u` | `jj git push --change @` (または `bookmark set`)            | 自動生成ブックマークまたは任意名で即 Push                                                            |
 
 #### (2) やりたいこと別レシピ（ワンクリック実行連携）
 

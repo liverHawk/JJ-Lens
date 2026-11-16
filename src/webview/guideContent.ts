@@ -544,8 +544,8 @@ export const CONCEPTS: Concept[] = [
 				en: 'There is no staging area. Choosing what goes in is done with jj split / jj squash',
 			},
 			{
-				ja: 'git stash に当たるコマンドはなく、そもそも退避が要らない。jj new <移動先> で別の場所に移っても、今の変更は元のコミットに入ったままログに残る。戻るときは jj edit <change_id>',
-				en: 'There is no equivalent of git stash, because nothing needs setting aside. After jj new <target> your changes are still in the commit they were in, visible in the log. Go back with jj edit <change_id>',
+				ja: 'git stash に当たるのは jj new @-。今の変更は元のコミットに残ったまま、親の上にきれいな @ ができる。戻すときは jj edit <change_id>(stash pop 相当)',
+				en: 'The equivalent of git stash is jj new @-: your changes stay in their commit and you get a clean @ on the parent. Bring them back with jj edit <change_id> (like stash pop)',
 			},
 			{
 				ja: '「コミットし忘れ」が起きない。作業は常にどこかのコミットに入っている',
@@ -759,11 +759,18 @@ export const ATLAS: AtlasCommand[] = [
 		command: 'jj new',
 		summary: { ja: '新しい空の変更を作り、@ をそこへ移す', en: 'Create a new empty change and move @ to it' },
 		usage: {
-			ja: '次の作業を始めるとき。別のリビジョンの上で作業したいときは jj new <rev>(git switch に近い)。元の変更は退避されるのではなく、元のコミットにそのまま残る。',
-			en: 'When you start the next piece of work. Use jj new <rev> to work on top of another revision (close to git switch). Your earlier changes are not stashed: they simply stay in their own commit.',
+			ja: '次の作業を始めるとき。別のリビジョンの上で作業したいときは jj new <rev>(git switch に近い)。jj new @- なら今の変更を脇に置いて親からやり直せる(git stash 相当)。',
+			en: 'When you start the next piece of work. Use jj new <rev> to work on top of another revision (close to git switch). jj new @- sets your current changes aside and restarts from the parent (like git stash).',
 		},
 		options: [
 			{ flag: 'jj new <rev>', text: { ja: '指定したリビジョンの上に作る', en: 'create it on top of that revision' } },
+			{
+				flag: 'jj new @-',
+				text: {
+					ja: '今の変更を脇に置き、親の上で始める(git stash 相当)',
+					en: 'set the current changes aside and start from the parent (like git stash)',
+				},
+			},
 			{ flag: 'jj new <A> <B>', text: { ja: '複数の親を持つマージを作る', en: 'create a merge with several parents' } },
 			{ flag: '-m <msg>', text: { ja: '説明を同時に付ける', en: 'set the description at the same time' } },
 		],
@@ -1188,11 +1195,11 @@ export interface GitComparison {
 export const GIT_COMPARISON: GitComparison[] = [
 	{
 		goal: { ja: '作業を一時退避して別作業へ', en: 'Set work aside and do something else' },
-		git: 'git stash → git switch <branch> → … → git stash pop',
-		jj: 'jj new <target> → … → jj edit <change_id>',
+		git: 'git stash → … → git stash pop',
+		jj: 'jj new @- → … → jj edit <change_id>',
 		note: {
-			ja: 'jj new は stash の言い換えではない。@ はすでにコミットなので退避という手順自体がなくなる。変更は元のコミットに残り、jj edit <change_id> でそこへ戻る',
-			en: 'jj new is not a stash. Because @ is already a commit, the stashing step disappears: your changes stay in their commit, and jj edit <change_id> takes you back to it',
+			ja: 'jj new @- が stash に当たる。変更は元のコミットに残り、親の上に空の @ ができる。jj edit <change_id> で元の変更へ戻る(pop 相当)',
+			en: 'jj new @- is the stash: your changes stay in their commit and an empty @ appears on the parent. jj edit <change_id> returns to them (the pop)',
 		},
 		atlas: 'new',
 	},
