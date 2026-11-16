@@ -2,6 +2,8 @@
 // concept explanations, the command atlas, recipes and cheat sheets.
 // This file must not import 'vscode' so it stays unit-testable in isolation.
 
+import { SimNode, SimOp } from '../jj/graph';
+
 export type Lang = 'ja' | 'en';
 
 /** A localized string. */
@@ -428,7 +430,7 @@ export function cliNotes(lang: Lang, commandLine: string): string[] {
 		tokens.shift();
 	}
 	const two = `${tokens[0]} ${tokens[1]}`;
-	const sub = two in CLI_NOTES ? two : tokens[0];
+	const sub = tokens[1] && !tokens[1].startsWith('-') && two in CLI_NOTES ? two : tokens[0];
 	const notes = sub in CLI_NOTES ? [tr(lang, CLI_NOTES[sub])] : [];
 	const seen = new Set<string>();
 	for (const token of tokens) {
@@ -456,3 +458,1007 @@ export function formatCli(args: readonly string[]): string {
 	};
 	return ['jj', ...args.map(quote)].join(' ');
 }
+
+// ---------------------------------------------------------------------------
+// Diagrams
+// ---------------------------------------------------------------------------
+
+/** A graph node in an illustration; labels may be localized. */
+export type DiagramNode = Omit<SimNode, 'label'> & { label?: L | string };
+
+export function localizeNodes(lang: Lang, nodes: readonly DiagramNode[]): SimNode[] {
+	return nodes.map((node) => ({
+		...node,
+		label: typeof node.label === 'object' ? tr(lang, node.label) : node.label,
+	}));
+}
+
+const node = (id: string, parents: string[], label: L | string, extra: Partial<SimNode> = {}): DiagramNode => ({
+	id,
+	parents,
+	label,
+	...extra,
+});
+
+const MAIN: DiagramNode = node(
+	'main',
+	[],
+	{ ja: '共有済みの履歴', en: 'shared history' },
+	{ immutable: true, bookmarks: ['main'] },
+);
+const LOGIN: L = { ja: 'ログイン画面', en: 'login form' };
+const API: L = { ja: 'API 追加', en: 'add API' };
+const TESTS: L = { ja: 'テスト追加', en: 'add tests' };
+const WIP: L = { ja: '作業中', en: 'work in progress' };
+
+/** main ← A ← B ← @C */
+const LINE: DiagramNode[] = [
+	node('C', ['B'], WIP, { workingCopy: true }),
+	node('B', ['A'], API),
+	node('A', ['main'], LOGIN),
+	MAIN,
+];
+
+/** main ← A ← B, and main ← X ← @Y on a second branch. */
+const FORK: DiagramNode[] = [
+	node('Y', ['X'], TESTS, { workingCopy: true }),
+	node('X', ['main'], { ja: '別の作業', en: 'other work' }),
+	node('B', ['A'], API),
+	node('A', ['main'], LOGIN),
+	MAIN,
+];
+
+// ---------------------------------------------------------------------------
+// Concepts
+// ---------------------------------------------------------------------------
+
+export interface ConceptPanel {
+	caption: L;
+	nodes: DiagramNode[];
+}
+
+export interface Concept {
+	id: string;
+	title: L;
+	body: L;
+	points: L[];
+	/** Either graph panels shown side by side, or the hand-drawn Git/jj comparison. */
+	diagram: { kind: 'panels'; panels: ConceptPanel[] } | { kind: 'working-copy' };
+}
+
+export const CONCEPTS: Concept[] = [
+	{
+		id: 'working-copy',
+		title: { ja: '1. 作業コピー = コミット (@)', en: '1. The Working Copy Is a Commit (@)' },
+		body: {
+			ja: 'Git ではファイルを編集 → git add でステージ → git commit という 3 段階を踏みます。Jujutsu では作業コピーそのものが @ というコミットで、ファイルを保存すれば次の jj コマンド実行時に自動で @ に記録されます。',
+			en: 'In Git you edit files, stage them with git add, then git commit. In Jujutsu the working copy itself is a commit called @: save a file and the next jj command records it into @ automatically.',
+		},
+		points: [
+			{
+				ja: 'ステージングエリア (index) がない。「入れたいものだけ選ぶ」は jj split / jj squash で行う',
+				en: 'There is no staging area. Choosing what goes in is done with jj split / jj squash',
+			},
+			{
+				ja: 'git stash が不要。別の作業をしたければ jj new <移動先> するだけで、今の変更は @ だったコミットに残る',
+				en: 'No git stash. To work on something else just run jj new <target>; your changes stay in the commit that was @',
+			},
+			{
+				ja: '「コミットし忘れ」が起きない。作業は常にどこかのコミットに入っている',
+				en: 'You cannot forget to commit: your work is always inside some commit',
+			},
+		],
+		diagram: { kind: 'working-copy' },
+	},
+	{
+		id: 'ids',
+		title: { ja: '2. Change ID と Commit ID', en: '2. Change ID vs Commit ID' },
+		body: {
+			ja: '各リビジョンは 2 つの ID を持ちます。Change ID(k〜z の文字)は「この変更」を指す不変の名前、Commit ID(16 進数)は中身のスナップショットの名前です。説明を直したりリベースしたりすると Commit ID は変わりますが、Change ID は変わりません。',
+			en: 'Every revision has two IDs. The change ID (letters k–z) is a stable name for "this change"; the commit ID (hex) names one snapshot of its content. Rewording or rebasing changes the commit ID, never the change ID.',
+		},
+		points: [
+			{
+				ja: 'コマンドには Change ID を使う。書き換えた後も同じ ID で指せる',
+				en: 'Use change IDs in commands: they still work after a rewrite',
+			},
+			{
+				ja: '強調表示されている先頭の数文字(最短ユニークプレフィックス)だけ打てば足りる',
+				en: 'Typing the highlighted first letters (the shortest unique prefix) is enough',
+			},
+			{ ja: '過去の Commit ID は jj evolog で辿れる', en: 'Earlier commit IDs can be found with jj evolog' },
+		],
+		diagram: {
+			kind: 'panels',
+			panels: [
+				{
+					caption: { ja: '書き換える前', en: 'Before rewriting' },
+					nodes: [
+						node(
+							'kxqp',
+							['main'],
+							{ ja: 'Change kxqp / Commit 3a1f', en: 'change kxqp / commit 3a1f' },
+							{ workingCopy: true },
+						),
+						MAIN,
+					],
+				},
+				{
+					caption: { ja: 'jj describe の後', en: 'After jj describe' },
+					nodes: [
+						node(
+							'kxqp',
+							['main'],
+							{ ja: 'Change kxqp / Commit 9c7e', en: 'change kxqp / commit 9c7e' },
+							{ workingCopy: true, mark: 'changed' },
+						),
+						MAIN,
+					],
+				},
+			],
+		},
+	},
+	{
+		id: 'bookmarks',
+		title: { ja: '3. Bookmark(名前のないブランチ)', en: '3. Bookmarks (Branches Without Names)' },
+		body: {
+			ja: 'Jujutsu ではブランチ名を付けなくてもコミットを積めます。枝分かれはグラフの形そのもので表現されます。名前が必要になったとき(PR を出すときなど)にだけ、Bookmark というラベルをコミットに貼ります。',
+			en: 'In Jujutsu you can stack commits without naming a branch: branches are simply the shape of the graph. Only when you need a name (to open a pull request, say) do you stick a bookmark label on a commit.',
+		},
+		points: [
+			{
+				ja: '「今いるブランチ」という概念がない。あるのは @ がどこにあるかだけ',
+				en: 'There is no "current branch", only where @ is',
+			},
+			{
+				ja: 'Bookmark は新しいコミットに自動では付いてこない。進めたいときは jj bookmark set で動かす',
+				en: 'A bookmark does not follow new commits; move it with jj bookmark set',
+			},
+			{
+				ja: 'jj git push --change <rev> なら Bookmark の作成と push を一度に行える',
+				en: 'jj git push --change <rev> creates a bookmark and pushes in one step',
+			},
+		],
+		diagram: {
+			kind: 'panels',
+			panels: [
+				{ caption: { ja: '名前なしで作業', en: 'Working without a name' }, nodes: LINE },
+				{
+					caption: { ja: '必要になったらラベルを貼る', en: 'Label it when you need to' },
+					nodes: [
+						node('C', ['B'], WIP, { workingCopy: true }),
+						node('B', ['A'], API, { bookmarks: ['feat-api'], mark: 'changed' }),
+						node('A', ['main'], LOGIN),
+						MAIN,
+					],
+				},
+			],
+		},
+	},
+	{
+		id: 'auto-rebase',
+		title: { ja: '4. 子孫の自動リベース', en: '4. Descendants Are Rebased Automatically' },
+		body: {
+			ja: '過去のコミットを edit / squash / describe で書き換えると、その上に積まれている子孫コミットは自動的に新しい親の上へリベースされます。git rebase -i のような対話的な手順は要りません。',
+			en: 'When you rewrite an earlier commit with edit, squash or describe, every commit stacked on top is rebased onto the new version automatically. No interactive rebase needed.',
+		},
+		points: [
+			{
+				ja: 'Change ID は変わらないので、子孫も同じ ID のまま',
+				en: 'Change IDs stay the same, for the descendants too',
+			},
+			{
+				ja: 'リベースでコンフリクトしても操作は止まらない(次の項目)',
+				en: 'A conflict during the rebase does not stop the operation (see the next concept)',
+			},
+		],
+		diagram: {
+			kind: 'panels',
+			panels: [
+				{ caption: { ja: 'A を直したい', en: 'You want to fix A' }, nodes: LINE },
+				{
+					caption: { ja: 'A を書き換えると B と C が追従', en: 'Rewrite A: B and C follow' },
+					nodes: [
+						node('C', ['B'], WIP, { workingCopy: true, mark: 'changed' }),
+						node('B', ['A'], API, { mark: 'changed' }),
+						node('A', ['main'], { ja: 'ログイン画面(修正済)', en: 'login form (fixed)' }, { mark: 'moved' }),
+						MAIN,
+					],
+				},
+			],
+		},
+	},
+	{
+		id: 'conflicts',
+		title: { ja: '5. コンフリクトもコミットに保存される', en: '5. Conflicts Are Stored in Commits' },
+		body: {
+			ja: 'Git ではコンフリクトが起きるとリベースが中断し、解消するまで先へ進めません。Jujutsu ではコンフリクトした状態がそのままコミットに記録され、操作は最後まで完了します。解消は好きなタイミングで行えます。',
+			en: 'In Git a conflict stops the rebase until you resolve it. In Jujutsu the conflicted state is recorded in the commit and the operation completes. You resolve it whenever you like.',
+		},
+		points: [
+			{
+				ja: 'コンフリクト中のコミットは赤いバッジで表示される。jj log -r "conflicts()" で一覧できる',
+				en: 'Conflicted commits get a red badge. List them with jj log -r "conflicts()"',
+			},
+			{
+				ja: '解消するには jj new <コンフリクト中のコミット> で上に乗り、直してから jj squash',
+				en: 'To resolve: jj new <conflicted commit>, fix the files, then jj squash',
+			},
+			{
+				ja: '親のコンフリクトを解消すると、子孫のコンフリクトも自動で消えることが多い',
+				en: 'Resolving the parent often makes the conflicts in its descendants disappear too',
+			},
+		],
+		diagram: {
+			kind: 'panels',
+			panels: [
+				{ caption: { ja: 'リベース前', en: 'Before the rebase' }, nodes: FORK },
+				{
+					caption: { ja: 'リベースは完了、コンフリクトは記録', en: 'Rebase done, conflict recorded' },
+					nodes: [
+						node('Y', ['X'], TESTS, { workingCopy: true, mark: 'moved' }),
+						node('X', ['B'], { ja: '別の作業', en: 'other work' }, { conflict: true, mark: 'moved' }),
+						node('B', ['A'], API),
+						node('A', ['main'], LOGIN),
+						MAIN,
+					],
+				},
+			],
+		},
+	},
+];
+
+// ---------------------------------------------------------------------------
+// Command atlas
+// ---------------------------------------------------------------------------
+
+export type AtlasCategory = 'basic' | 'rewrite' | 'move' | 'safety' | 'git';
+
+export const ATLAS_CATEGORIES: Record<AtlasCategory, L> = {
+	basic: { ja: '基本操作', en: 'Basics' },
+	rewrite: { ja: '履歴の整理・統合・分割', en: 'Tidying, Combining and Splitting' },
+	move: { ja: '履歴の移動・並び替え', en: 'Moving and Reordering' },
+	safety: { ja: '安全網・履歴追跡', en: 'Safety Net and History Tracking' },
+	git: { ja: 'Git 連携・Bookmark', en: 'Git and Bookmarks' },
+};
+
+export interface AtlasCommand {
+	id: string;
+	category: AtlasCategory;
+	/** The command line shown as the card title. */
+	command: string;
+	summary: L;
+	/** When you would reach for it. */
+	usage: L;
+	options: { flag: string; text: L }[];
+	before: DiagramNode[];
+	/** The After graph is simulated from `op`, unless `after` gives it explicitly. */
+	op?: SimOp;
+	after?: DiagramNode[];
+	/** "Try it": run a VS Code command, or go to a Studio tab with a hint. */
+	try: { command: string } | { tab: StudioTab; hint: L };
+}
+
+const GRAPH_HINT_DRAG: L = {
+	ja: 'グラフでノードを別のノードへドラッグすると、Before/After プレビュー付きで実行できます。',
+	en: 'Drag a node onto another in the graph to run this with a Before/After preview.',
+};
+const GRAPH_HINT_SELECT: L = {
+	ja: 'グラフでリビジョンを選ぶと、右のインスペクタから実行できます。',
+	en: 'Select a revision in the graph, then use the inspector on the right.',
+};
+
+export const ATLAS: AtlasCommand[] = [
+	{
+		id: 'new',
+		category: 'basic',
+		command: 'jj new',
+		summary: { ja: '新しい空の変更を作り、@ をそこへ移す', en: 'Create a new empty change and move @ to it' },
+		usage: {
+			ja: '次の作業を始めるとき。別のリビジョンの上で作業したいときは jj new <rev>。git checkout / git stash の代わりにもなる。',
+			en: 'When you start the next piece of work. Use jj new <rev> to work on top of another revision; it also replaces git checkout / git stash.',
+		},
+		options: [
+			{ flag: 'jj new <rev>', text: { ja: '指定したリビジョンの上に作る', en: 'create it on top of that revision' } },
+			{ flag: 'jj new <A> <B>', text: { ja: '複数の親を持つマージを作る', en: 'create a merge with several parents' } },
+			{ flag: '-m <msg>', text: { ja: '説明を同時に付ける', en: 'set the description at the same time' } },
+		],
+		before: LINE,
+		op: { kind: 'new', parents: ['C'] },
+		try: { command: 'jj-lens.new' },
+	},
+	{
+		id: 'edit',
+		category: 'basic',
+		command: 'jj edit <rev>',
+		summary: { ja: '過去のリビジョンを @ にして直接編集する', en: 'Make an earlier revision @ and edit it in place' },
+		usage: {
+			ja: '数個前のコミットを直接直したいとき。ファイルを編集すればそのコミットに入り、子孫は自動でリベースされる。',
+			en: 'When you want to fix a commit a few steps back. Your edits go into that commit and its descendants are rebased automatically.',
+		},
+		options: [],
+		before: LINE,
+		op: { kind: 'edit', rev: 'A' },
+		try: { command: 'jj-lens.edit' },
+	},
+	{
+		id: 'describe',
+		category: 'basic',
+		command: 'jj describe',
+		summary: { ja: '説明文(コミットメッセージ)を書き換える', en: 'Change the description (commit message)' },
+		usage: {
+			ja: 'いつでも、どのリビジョンにも使える。作業の途中で説明を書いてもよい。',
+			en: 'Any time, on any revision. You can describe a change while you are still working on it.',
+		},
+		options: [
+			{ flag: '-r <rev>', text: { ja: '@ 以外のリビジョンを対象にする', en: 'describe a revision other than @' } },
+			{ flag: '-m <msg>', text: { ja: 'エディタを開かずに説明を指定', en: 'give the description without an editor' } },
+		],
+		before: LINE,
+		op: { kind: 'describe', rev: 'B' },
+		try: { command: 'jj-lens.describe' },
+	},
+	{
+		id: 'commit',
+		category: 'basic',
+		command: 'jj commit',
+		summary: { ja: '@ に説明を付けて確定し、新しい空の @ を作る', en: 'Describe @ and start a new empty @ on top' },
+		usage: {
+			ja: '「今の変更に説明を付けて次へ進む」をひとまとめに行う。jj describe + jj new と同じ。',
+			en: 'Does "describe what I did and move on" in one step. Same as jj describe followed by jj new.',
+		},
+		options: [{ flag: '-m <msg>', text: { ja: '説明を指定', en: 'the description' } }],
+		before: LINE,
+		op: { kind: 'commit' },
+		try: { command: 'jj-lens.commit' },
+	},
+	{
+		id: 'squash',
+		category: 'rewrite',
+		command: 'jj squash',
+		summary: { ja: '@ の変更を親 (@-) に流し込む', en: 'Move the changes of @ into its parent (@-)' },
+		usage: {
+			ja: '直前のコミットに修正を混ぜたいとき(git commit --amend 相当)。ファイルを指定すればその分だけ移せる。',
+			en: 'When you want to fold a fix into the previous commit (like git commit --amend). Give paths to move only those files.',
+		},
+		options: [
+			{
+				flag: '-r <rev>',
+				text: { ja: '@ 以外のリビジョンをその親へ統合', en: 'squash another revision into its parent' },
+			},
+			{ flag: '<paths>', text: { ja: '指定したファイルだけを移す', en: 'move only these files' } },
+		],
+		before: LINE,
+		op: { kind: 'squash', from: 'C', into: 'B' },
+		try: { command: 'jj-lens.squash' },
+	},
+	{
+		id: 'squash-into',
+		category: 'rewrite',
+		command: 'jj squash --from <A> --into <B>',
+		summary: {
+			ja: '任意のリビジョンから任意のリビジョンへ変更を移す',
+			en: 'Move changes from any revision into any other',
+		},
+		usage: {
+			ja: '親以外へ変更を移したいとき。例:@ の修正を 3 つ前のコミットへ直接入れる。',
+			en: 'When the destination is not the parent, e.g. putting a fix from @ straight into a commit three steps back.',
+		},
+		options: [
+			{ flag: '--from <rev>', text: { ja: '変更の取り出し元', en: 'where the changes come from' } },
+			{ flag: '--into <rev>', text: { ja: '変更の入れ先', en: 'where the changes go' } },
+		],
+		before: LINE,
+		op: { kind: 'squash', from: 'C', into: 'A' },
+		try: { tab: 'graph', hint: GRAPH_HINT_DRAG },
+	},
+	{
+		id: 'split',
+		category: 'rewrite',
+		command: 'jj split <paths>',
+		summary: { ja: '1 つのリビジョンを親子 2 つに分ける', en: 'Split one revision into a parent and a child' },
+		usage: {
+			ja: '1 つのコミットに変更を混ぜすぎたとき。指定したファイルが 1 つ目、残りが 2 つ目に入る。',
+			en: 'When one commit does too much. The given files go into the first part, the rest into the second.',
+		},
+		options: [
+			{ flag: '-r <rev>', text: { ja: '分割するリビジョン(既定は @)', en: 'the revision to split (default @)' } },
+			{ flag: '-m <msg>', text: { ja: '1 つ目のコミットの説明', en: 'description of the first part' } },
+		],
+		before: LINE,
+		op: { kind: 'split', rev: 'B' },
+		try: { command: 'jj-lens.split' },
+	},
+	{
+		id: 'split-parallel',
+		category: 'rewrite',
+		command: 'jj split --parallel <paths>',
+		summary: { ja: '1 つのリビジョンを兄弟 2 つに分ける', en: 'Split one revision into two siblings' },
+		usage: {
+			ja: '分けた 2 つが互いに依存しないとき。別々の PR にしたい場合に便利。',
+			en: 'When the two parts do not depend on each other, e.g. to send them as separate pull requests.',
+		},
+		options: [
+			{ flag: '--parallel', text: { ja: '親子ではなく並列に分ける', en: 'siblings instead of parent and child' } },
+		],
+		before: LINE,
+		op: { kind: 'split', rev: 'B', parallel: true },
+		try: { tab: 'graph', hint: GRAPH_HINT_SELECT },
+	},
+	{
+		id: 'absorb',
+		category: 'rewrite',
+		command: 'jj absorb',
+		summary: {
+			ja: '@ の変更を、適切な過去コミットへ自動で振り分ける',
+			en: 'Distribute the changes of @ into the right earlier commits',
+		},
+		usage: {
+			ja: 'レビュー指摘などで複数のコミットにまたがる修正をしたとき。各行を「その行を最後に変更した祖先」へ吸収させる。',
+			en: 'After making fixes that belong to several commits (review feedback, say). Each line goes to the ancestor that last changed it.',
+		},
+		options: [
+			{ flag: '--from <rev>', text: { ja: '振り分け元(既定は @)', en: 'the source (default @)' } },
+			{ flag: '--into <revset>', text: { ja: '振り分け先の候補を絞る', en: 'restrict the candidate destinations' } },
+		],
+		before: LINE,
+		op: { kind: 'absorb' },
+		try: { command: 'jj-lens.absorb' },
+	},
+	{
+		id: 'abandon',
+		category: 'rewrite',
+		command: 'jj abandon <rev>',
+		summary: { ja: 'リビジョンを捨て、子を親へ繋ぎ直す', en: 'Drop a revision and reattach its children' },
+		usage: {
+			ja: '不要になった変更を消すとき。子孫は残り、捨てたリビジョンの親の上へリベースされる。',
+			en: 'When a change is no longer wanted. Its descendants stay and are rebased onto its parent.',
+		},
+		options: [],
+		before: LINE,
+		op: { kind: 'abandon', rev: 'B' },
+		try: { command: 'jj-lens.abandon' },
+	},
+	{
+		id: 'restore',
+		category: 'rewrite',
+		command: 'jj restore <paths>',
+		summary: {
+			ja: 'ファイルの変更を取り消す(親の内容へ戻す)',
+			en: 'Discard changes to files (restore from the parent)',
+		},
+		usage: {
+			ja: '特定のファイルの変更だけをなかったことにしたいとき。',
+			en: 'When you want to throw away the changes to particular files only.',
+		},
+		options: [
+			{
+				flag: '--changes-in <rev>',
+				text: { ja: 'このリビジョンでの変更を取り消す', en: 'discard the changes made in this revision' },
+			},
+			{
+				flag: '--from <rev>',
+				text: { ja: 'このリビジョンの内容を取り込む', en: 'take the content from this revision' },
+			},
+		],
+		before: LINE,
+		op: { kind: 'restore', rev: 'C' },
+		try: { tab: 'graph', hint: GRAPH_HINT_SELECT },
+	},
+	{
+		id: 'rebase-r',
+		category: 'move',
+		command: 'jj rebase -r <rev> --onto <dest>',
+		summary: { ja: 'リビジョン 1 つだけを抜き出して移動する', en: 'Pull out a single revision and move it' },
+		usage: {
+			ja: 'コミットの順番を入れ替えたいとき、1 つだけ別の場所へ移したいとき。子孫は元の親へ繋ぎ直される。',
+			en: 'To reorder commits or move just one elsewhere. Its children are reattached to its old parent.',
+		},
+		options: [
+			{ flag: '-r <rev>', text: { ja: '移動するリビジョン(単体)', en: 'the single revision to move' } },
+			{ flag: '--onto <rev>', text: { ja: '移動先の親', en: 'the new parent' } },
+			{
+				flag: '-A / -B <rev>',
+				text: { ja: '指定リビジョンの直後 / 直前に挿入', en: 'insert right after / before a revision' },
+			},
+		],
+		before: LINE,
+		op: { kind: 'rebase', mode: 'r', source: 'A', onto: 'C' },
+		try: { tab: 'graph', hint: GRAPH_HINT_DRAG },
+	},
+	{
+		id: 'rebase-s',
+		category: 'move',
+		command: 'jj rebase -s <rev> --onto <dest>',
+		summary: { ja: 'リビジョンと、その子孫すべてを移動する', en: 'Move a revision together with all its descendants' },
+		usage: {
+			ja: '途中から上の積み重ねを丸ごと別の場所へ載せ替えたいとき。',
+			en: 'To transplant a stack of commits, from some point upward, onto another place.',
+		},
+		options: [
+			{
+				flag: '-s <rev>',
+				text: { ja: '移動の起点(子孫も一緒に動く)', en: 'the root of what moves (descendants come along)' },
+			},
+			{ flag: '--onto <rev>', text: { ja: '移動先の親', en: 'the new parent' } },
+		],
+		before: FORK,
+		op: { kind: 'rebase', mode: 's', source: 'X', onto: 'B' },
+		try: { tab: 'graph', hint: GRAPH_HINT_DRAG },
+	},
+	{
+		id: 'rebase-b',
+		category: 'move',
+		command: 'jj rebase -b <rev> --onto <dest>',
+		summary: { ja: 'ブランチ全体を移動する', en: 'Move a whole branch' },
+		usage: {
+			ja: '最新の main の上へ作業ブランチを載せ直すとき(git rebase main 相当)。ブランチのどのコミットを指定してもよい。',
+			en: 'To put your work on top of the latest main (like git rebase main). Any commit of the branch can be named.',
+		},
+		options: [
+			{
+				flag: '-b <rev>',
+				text: {
+					ja: 'このリビジョンを含むブランチ全体(既定は @)',
+					en: 'the whole branch containing this revision (default @)',
+				},
+			},
+			{ flag: '--onto <rev>', text: { ja: '移動先の親', en: 'the new parent' } },
+		],
+		before: FORK,
+		op: { kind: 'rebase', mode: 'b', source: 'Y', onto: 'B' },
+		try: { tab: 'graph', hint: GRAPH_HINT_DRAG },
+	},
+	{
+		id: 'parallelize',
+		category: 'move',
+		command: 'jj parallelize <A>::<B>',
+		summary: { ja: '直列のコミットを並列の兄弟に並べ替える', en: 'Turn a chain of commits into siblings' },
+		usage: {
+			ja: '積み重ねたコミットが実は互いに独立していたとき。上にある子は両方を親に持つマージになる。',
+			en: 'When stacked commits turn out to be independent. A child above them becomes a merge of both.',
+		},
+		options: [{ flag: '<A>::<B>', text: { ja: 'A から B までの範囲', en: 'the range from A to B' } }],
+		before: LINE,
+		op: { kind: 'parallelize', from: 'A', to: 'B' },
+		try: { tab: 'graph', hint: GRAPH_HINT_DRAG },
+	},
+	{
+		id: 'duplicate',
+		category: 'move',
+		command: 'jj duplicate <rev>',
+		summary: { ja: '同じ内容で新しい Change ID のコピーを作る', en: 'Copy a revision under a new change ID' },
+		usage: {
+			ja: '元を残したまま別の案を試したいとき。cherry-pick の代わりにもなる。',
+			en: 'To try a variation while keeping the original. Also serves as cherry-pick.',
+		},
+		options: [{ flag: '--onto <rev>', text: { ja: 'コピーを置く場所を指定', en: 'where to put the copy' } }],
+		before: LINE,
+		op: { kind: 'duplicate', rev: 'B' },
+		try: { command: 'jj-lens.duplicate' },
+	},
+	{
+		id: 'undo',
+		category: 'safety',
+		command: 'jj undo',
+		summary: { ja: '直前の操作を取り消す', en: 'Undo the last operation' },
+		usage: {
+			ja: 'rebase や squash、abandon を間違えたとき。リポジトリ全体が 1 つ前の状態へ戻る。',
+			en: 'After a wrong rebase, squash or abandon. The whole repository goes back one step.',
+		},
+		options: [],
+		before: [node('C', ['A'], WIP, { workingCopy: true }), node('A', ['main'], LOGIN), MAIN],
+		after: LINE.map((n) => (n.id === 'B' ? { ...n, mark: 'new' as const } : n)),
+		try: { command: 'jj-lens.undo' },
+	},
+	{
+		id: 'op-restore',
+		category: 'safety',
+		command: 'jj op log / jj op restore <op>',
+		summary: {
+			ja: '操作履歴を見て、任意の時点へ丸ごと戻す',
+			en: 'Browse the operation history and jump back to any point',
+		},
+		usage: {
+			ja: '何手も前に戻りたいとき。op log で時点を探し、op restore でその状態を復元する。復元自体も 1 つの操作として記録される。',
+			en: 'To go back several steps. Find the point in op log and restore it; the restore is itself recorded as an operation.',
+		},
+		options: [{ flag: '<op>', text: { ja: 'op log に表示される操作 ID', en: 'the operation ID shown by op log' } }],
+		before: [node('C', ['main'], WIP, { workingCopy: true }), MAIN],
+		after: LINE.map((n) => (n.id === 'A' || n.id === 'B' ? { ...n, mark: 'new' as const } : n)),
+		try: {
+			tab: 'ops',
+			hint: {
+				ja: 'タイムラインから戻りたい時点を選んでください。',
+				en: 'Pick the point to return to on the timeline.',
+			},
+		},
+	},
+	{
+		id: 'evolog',
+		category: 'safety',
+		command: 'jj evolog -r <rev>',
+		summary: { ja: '1 つの変更が書き換えられてきた履歴を見る', en: 'See how one change has been rewritten' },
+		usage: {
+			ja: '「このコミット、前はどうなっていた?」を調べるとき。過去の Commit ID が分かれば、そこから内容を取り戻せる。',
+			en: 'To answer "what did this commit look like before?". With an old commit ID you can get that content back.',
+		},
+		options: [{ flag: '-p', text: { ja: '各書き換えの差分も表示', en: 'also show the diff of each rewrite' } }],
+		before: [
+			node(
+				'kxqp',
+				['main'],
+				{ ja: 'Change kxqp / Commit 9c7e(現在)', en: 'change kxqp / commit 9c7e (now)' },
+				{ workingCopy: true },
+			),
+			MAIN,
+		],
+		after: [
+			node('9c7e', ['5b2d'], { ja: '9c7e:説明を変更', en: '9c7e: reworded' }, { mark: 'changed' }),
+			node('5b2d', ['3a1f'], { ja: '5b2d:main の上へリベース', en: '5b2d: rebased onto main' }, { mark: 'changed' }),
+			node('3a1f', [], { ja: '3a1f:最初のスナップショット', en: '3a1f: first snapshot' }, { mark: 'changed' }),
+		],
+		try: { tab: 'graph', hint: GRAPH_HINT_SELECT },
+	},
+	{
+		id: 'bookmark',
+		category: 'git',
+		command: 'jj bookmark set <name> -r <rev>',
+		summary: { ja: 'Bookmark を作る・動かす(delete で削除)', en: 'Create or move a bookmark (delete removes it)' },
+		usage: {
+			ja: 'PR 用のブランチ名が必要になったとき。コミットを追加した後は、もう一度 set して Bookmark を進める。',
+			en: 'When you need a branch name for a pull request. After adding commits, set it again to move it forward.',
+		},
+		options: [
+			{ flag: '-r <rev>', text: { ja: 'Bookmark を置くリビジョン(既定は @)', en: 'where to put it (default @)' } },
+			{ flag: 'jj bookmark delete <name>', text: { ja: 'Bookmark を削除', en: 'delete the bookmark' } },
+		],
+		before: LINE,
+		after: LINE.map((n) => (n.id === 'B' ? { ...n, bookmarks: ['feat-api'], mark: 'changed' as const } : n)),
+		try: { command: 'jj-lens.bookmarkSet' },
+	},
+	{
+		id: 'git-fetch',
+		category: 'git',
+		command: 'jj git fetch',
+		summary: { ja: 'リモートの最新を取得する', en: 'Fetch the latest from the remote' },
+		usage: {
+			ja: 'リモートの更新を取り込むとき。作業コピーは動かないので、必要なら jj rebase -b @ --onto main で載せ直す。',
+			en: 'To get what is new on the remote. Your working copy does not move; follow up with jj rebase -b @ --onto main if needed.',
+		},
+		options: [{ flag: '--remote <name>', text: { ja: '取得するリモートを指定', en: 'which remote to fetch from' } }],
+		before: [node('C', ['A'], WIP, { workingCopy: true }), node('A', ['main'], LOGIN), MAIN],
+		after: [
+			node('C', ['A'], WIP, { workingCopy: true }),
+			node('A', ['old'], LOGIN),
+			node(
+				'main',
+				['old'],
+				{ ja: 'リモートの新しいコミット', en: 'new commit from the remote' },
+				{ immutable: true, bookmarks: ['main'], mark: 'new' },
+			),
+			node('old', [], { ja: '共有済みの履歴', en: 'shared history' }, { immutable: true }),
+		],
+		try: { command: 'jj-lens.gitFetch' },
+	},
+	{
+		id: 'git-push',
+		category: 'git',
+		command: 'jj git push --change <rev>',
+		summary: { ja: 'Bookmark を自動生成してリモートへ push する', en: 'Create a bookmark automatically and push it' },
+		usage: {
+			ja: 'ブランチ名を考えずに PR を出したいとき。push-<change id> という Bookmark が作られる。既存の Bookmark を送るなら --bookmark <name>。',
+			en: 'To open a pull request without inventing a branch name: a bookmark push-<change id> is created. Use --bookmark <name> for an existing one.',
+		},
+		options: [
+			{
+				flag: '--change <rev>',
+				text: {
+					ja: 'このリビジョン用の Bookmark を作って push',
+					en: 'create a bookmark for this revision and push it',
+				},
+			},
+			{ flag: '--bookmark <name>', text: { ja: '既存の Bookmark を push', en: 'push an existing bookmark' } },
+		],
+		before: LINE,
+		after: LINE.map((n) =>
+			n.id === 'B' ? { ...n, bookmarks: ['push-kxqp', 'push-kxqp@origin'], mark: 'changed' as const } : n,
+		),
+		try: { command: 'jj-lens.gitPushRevision' },
+	},
+];
+
+// ---------------------------------------------------------------------------
+// Git comparison, recipes and revsets
+// ---------------------------------------------------------------------------
+
+export interface GitComparison {
+	goal: L;
+	git: string;
+	jj: string;
+	note: L;
+	/** Atlas card that illustrates the jj side. */
+	atlas?: string;
+}
+
+export const GIT_COMPARISON: GitComparison[] = [
+	{
+		goal: { ja: '作業を一時退避して別作業へ', en: 'Set work aside and do something else' },
+		git: 'git stash / git checkout',
+		jj: 'jj new <target>',
+		note: {
+			ja: '@ はすでにコミットなので退避不要。別コミット上で jj new するだけ',
+			en: '@ is already a commit, so nothing to stash. Just jj new on the other commit',
+		},
+		atlas: 'new',
+	},
+	{
+		goal: { ja: '直前のコミットに修正を混ぜる', en: 'Add a fix to the previous commit' },
+		git: 'git add -p && git commit --amend',
+		jj: 'jj squash',
+		note: {
+			ja: '@ の変更を親 @- に流し込む(ファイル指定も可)',
+			en: 'Moves the changes of @ into its parent @- (paths can be given)',
+		},
+		atlas: 'squash',
+	},
+	{
+		goal: { ja: '3つ前のコミットを直接直す', en: 'Fix a commit three steps back' },
+		git: 'git rebase -i HEAD~4',
+		jj: 'jj edit <change_id> / jj squash --into <change_id>',
+		note: {
+			ja: '子孫は自動でリベースされるため対話的リベース不要',
+			en: 'Descendants are rebased automatically; no interactive rebase',
+		},
+		atlas: 'edit',
+	},
+	{
+		goal: { ja: '変更を適切な過去コミットへ自動振り分け', en: 'Send fixes to the right earlier commits' },
+		git: 'git commit --fixup + autosquash',
+		jj: 'jj absorb',
+		note: {
+			ja: '変更した行を最後に触った祖先コミットへ自動吸収',
+			en: 'Each line is absorbed by the ancestor that last touched it',
+		},
+		atlas: 'absorb',
+	},
+	{
+		goal: { ja: 'コミットを2つに分割する', en: 'Split a commit in two' },
+		git: 'git reset HEAD~ → git add -p',
+		jj: 'jj split',
+		note: { ja: 'GUI でファイルを選んで分割可能', en: 'Pick the files in the GUI and split' },
+		atlas: 'split',
+	},
+	{
+		goal: { ja: '操作ミスを取り消す', en: 'Undo a mistake' },
+		git: 'git reflog → git reset --hard',
+		jj: 'jj undo / jj op restore',
+		note: {
+			ja: 'リポジトリ全体の状態履歴から安全に1コマンドで復元',
+			en: 'One command restores the whole repository from its operation history',
+		},
+		atlas: 'undo',
+	},
+	{
+		goal: { ja: 'PR 用のブランチを作って Push', en: 'Create a branch for a PR and push' },
+		git: 'git switch -c feat && git push -u',
+		jj: 'jj git push --change @ / jj bookmark set',
+		note: {
+			ja: '自動生成ブックマークまたは任意名で即 Push',
+			en: 'Push right away with a generated or a chosen bookmark name',
+		},
+		atlas: 'git-push',
+	},
+];
+
+export interface RecipeStep {
+	text: L;
+	cli?: string;
+	/** Runs a VS Code command, or sends the user to a Studio tab with a hint. */
+	run?: { command: string } | { tab: StudioTab; hint: L };
+}
+
+export interface Recipe {
+	id: string;
+	title: L;
+	steps: RecipeStep[];
+}
+
+export const RECIPES: Recipe[] = [
+	{
+		id: 'commit',
+		title: { ja: '今の変更に説明をつけて次の作業に進みたい', en: 'Describe what I did and move on' },
+		steps: [
+			{
+				text: {
+					ja: 'ファイルを保存する(git add は不要。変更はもう @ に入っている)',
+					en: 'Save your files (no git add; the changes are already in @)',
+				},
+			},
+			{
+				text: { ja: '説明を付けて、新しい空の @ を作る', en: 'Describe it and start a new empty @' },
+				cli: 'jj commit -m "説明"',
+				run: { command: 'jj-lens.commit' },
+			},
+		],
+	},
+	{
+		id: 'amend',
+		title: {
+			ja: '直前のコミット (@-) に今の変更を混ぜたい',
+			en: 'Fold my current changes into the previous commit (@-)',
+		},
+		steps: [
+			{
+				text: { ja: '@ の変更をすべて親へ流し込む', en: 'Move everything in @ into its parent' },
+				cli: 'jj squash',
+				run: { command: 'jj-lens.squash' },
+			},
+			{
+				text: {
+					ja: '一部のファイルだけ混ぜたいなら、グラフで @ を選び、ファイルにチェックして「移動」',
+					en: 'For only some files: select @ in the graph, tick the files and press Move',
+				},
+				cli: 'jj squash <paths>',
+				run: { tab: 'graph', hint: GRAPH_HINT_SELECT },
+			},
+		],
+	},
+	{
+		id: 'edit-old',
+		title: { ja: '数個前のコミットに戻って直接ファイルを修正したい', en: 'Go back a few commits and fix files there' },
+		steps: [
+			{
+				text: { ja: '直したいコミットを @ にする', en: 'Make that commit the working copy' },
+				cli: 'jj edit <change_id>',
+				run: { command: 'jj-lens.edit' },
+			},
+			{
+				text: {
+					ja: 'ファイルを直して保存。子孫は自動でリベースされる',
+					en: 'Fix and save the files. Descendants are rebased automatically',
+				},
+			},
+			{
+				text: {
+					ja: '元の場所へ戻る(戻りたいコミットの上に新しい @ を作る)',
+					en: 'Go back (start a new @ on top of where you were)',
+				},
+				cli: 'jj new <change_id>',
+				run: { tab: 'graph', hint: GRAPH_HINT_SELECT },
+			},
+		],
+	},
+	{
+		id: 'split',
+		title: {
+			ja: '1つのコミットに混ぜすぎた変更をファイル単位で2つに分けたい',
+			en: 'Split a commit that does too much, file by file',
+		},
+		steps: [
+			{
+				text: {
+					ja: 'グラフでコミットを選び、分けたいファイルにチェックして「分割」',
+					en: 'Select the commit in the graph, tick the files to separate, press Split',
+				},
+				cli: 'jj split -r <change_id> <paths>',
+				run: { tab: 'graph', hint: GRAPH_HINT_SELECT },
+			},
+			{
+				text: { ja: 'または、ファイルを選ぶピッカーから分割する', en: 'Or split @ from a file picker' },
+				cli: 'jj split <paths>',
+				run: { command: 'jj-lens.split' },
+			},
+		],
+	},
+	{
+		id: 'absorb',
+		title: {
+			ja: '複数の変更をどの過去コミットに入れるか自動で振り分けたい',
+			en: 'Let jj decide which earlier commits my fixes belong to',
+		},
+		steps: [
+			{
+				text: { ja: '@ で修正をまとめて行い、保存する', en: 'Make all the fixes in @ and save' },
+			},
+			{
+				text: {
+					ja: '各行を、その行を最後に変更した祖先コミットへ吸収させる',
+					en: 'Absorb each line into the ancestor that last changed it',
+				},
+				cli: 'jj absorb',
+				run: { command: 'jj-lens.absorb' },
+			},
+			{
+				text: {
+					ja: '振り分け先が決まらなかった変更は @ に残る。jj squash --into で手動で入れる',
+					en: 'Changes with no clear destination stay in @; place them with jj squash --into',
+				},
+			},
+		],
+	},
+	{
+		id: 'undo',
+		title: {
+			ja: '間違えて Rebase / Squash してしまったので元に戻したい',
+			en: 'I rebased or squashed by mistake and want it back',
+		},
+		steps: [
+			{
+				text: { ja: '直前の 1 手を取り消す', en: 'Undo the last step' },
+				cli: 'jj undo',
+				run: { command: 'jj-lens.undo' },
+			},
+			{
+				text: {
+					ja: 'もっと前へ戻るなら、操作タイムラインで時点を選んで「この時点に戻す」',
+					en: 'To go further back, pick a point on the Operations Timeline and restore it',
+				},
+				cli: 'jj op restore <op_id>',
+				run: {
+					tab: 'ops',
+					hint: {
+						ja: '戻りたい時点の「この時点に戻す」を押してください。',
+						en: 'Press "Restore to Here" on the point you want.',
+					},
+				},
+			},
+		],
+	},
+	{
+		id: 'push',
+		title: { ja: 'GitHub に Pull Request を出すために Push したい', en: 'Push so I can open a pull request on GitHub' },
+		steps: [
+			{
+				text: { ja: '最新を取得し、必要なら main の上へ載せ直す', en: 'Fetch, and rebase onto main if needed' },
+				cli: 'jj git fetch && jj rebase -b @ --onto main',
+				run: { command: 'jj-lens.gitFetch' },
+			},
+			{
+				text: {
+					ja: 'Push する。Bookmark がなければ自動で作られる',
+					en: 'Push. A bookmark is created if there is none',
+				},
+				cli: 'jj git push --change <change_id>',
+				run: { command: 'jj-lens.gitPushRevision' },
+			},
+			{
+				text: {
+					ja: 'レビュー後にコミットを直したら、同じ Bookmark をもう一度 Push する(force push は自動)',
+					en: 'After fixing commits in review, push the same bookmark again (the force push is automatic)',
+				},
+				cli: 'jj git push --bookmark <name>',
+			},
+		],
+	},
+];
+
+export interface RevsetEntry {
+	expr: string;
+	meaning: L;
+}
+
+export const REVSETS: RevsetEntry[] = [
+	{ expr: '@', meaning: { ja: '作業コピー', en: 'the working copy' } },
+	{ expr: '@-', meaning: { ja: '作業コピーの親', en: 'the parent of the working copy' } },
+	{ expr: '@--', meaning: { ja: '作業コピーの祖父母', en: 'the grandparent of the working copy' } },
+	{
+		expr: 'trunk()',
+		meaning: { ja: 'メインブランチ(main / master)の先頭', en: 'the head of the main branch (main / master)' },
+	},
+	{
+		expr: 'trunk()..@',
+		meaning: { ja: 'メインブランチから現在までの自分の変更', en: 'your changes between the main branch and @' },
+	},
+	{ expr: 'mine()', meaning: { ja: '自分が author のコミット', en: 'commits you authored' } },
+	{ expr: 'conflicts()', meaning: { ja: 'コンフリクト中のコミット', en: 'commits with conflicts' } },
+	{ expr: 'empty()', meaning: { ja: '変更のない空コミット', en: 'commits with no changes' } },
+	{ expr: 'mutable()', meaning: { ja: '書き換え可能な(未共有の)コミット', en: 'commits you may still rewrite' } },
+	{ expr: 'heads(all())', meaning: { ja: 'すべての枝の先頭', en: 'the head of every branch' } },
+	{ expr: 'ancestors(@, 5)', meaning: { ja: '@ から 5 世代分の祖先', en: '@ and its ancestors, 5 generations deep' } },
+	{ expr: 'bookmarks()', meaning: { ja: 'Bookmark が付いているコミット', en: 'commits that carry a bookmark' } },
+	{ expr: 'all()', meaning: { ja: 'すべてのコミット', en: 'every commit' } },
+];
+
+/** One-click revset chips above the graph. An empty expression is jj's default. */
+export const REVSET_CHIPS: string[] = ['', 'trunk()..@', 'mine()', 'all()', 'conflicts()', 'mutable()'];
