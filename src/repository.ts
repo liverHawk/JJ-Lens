@@ -3,12 +3,15 @@ import * as vscode from 'vscode';
 import { Jj, JjResult } from './jj/cli';
 import {
 	DIFF_TEMPLATE,
+	EVOLOG_TEMPLATE,
+	EvologEntry,
 	FileChange,
 	fileset,
 	LOG_TEMPLATE,
 	OP_TEMPLATE,
 	Operation,
 	parseDiff,
+	parseEvolog,
 	parseLog,
 	parseOpLog,
 	Revision,
@@ -73,6 +76,17 @@ export class Repository implements vscode.Disposable {
 	async opLog(limit: number): Promise<Operation[]> {
 		const { stdout } = await this.read(['op', 'log', '--no-graph', '-n', String(limit), '-T', OP_TEMPLATE]);
 		return parseOpLog(stdout);
+	}
+
+	/** How a change has been rewritten over time, newest first. */
+	async evolog(rev: string, limit = 30): Promise<EvologEntry[]> {
+		const { stdout } = await this.read(['evolog', '--no-graph', '-r', rev, '-n', String(limit), '-T', EVOLOG_TEMPLATE]);
+		return parseEvolog(stdout);
+	}
+
+	/** The working-copy revision (`@`). Snapshots the working copy first. */
+	async workingCopy(): Promise<Revision | undefined> {
+		return (await this.log('@', 1))[0];
 	}
 
 	async fileContent(rev: string, filePath: string): Promise<string> {

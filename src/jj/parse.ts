@@ -41,6 +41,18 @@ export interface Operation {
 	current: boolean;
 }
 
+export interface EvologEntry {
+	commitId: string;
+	changeId: string;
+	description: string;
+	authorName: string;
+	timestamp: string;
+	empty: boolean;
+	conflict: boolean;
+	operationId: string;
+	operationDescription: string;
+}
+
 type Fields<T> = { [K in keyof T]: string };
 
 /** Builds a jj template that prints one JSON object per line. */
@@ -92,6 +104,18 @@ export const OP_TEMPLATE = jsonTemplate<Operation>({
 	current: 'current_operation',
 });
 
+export const EVOLOG_TEMPLATE = jsonTemplate<EvologEntry>({
+	commitId: 'commit.commit_id().short(12)',
+	changeId: 'commit.change_id().short(12)',
+	description: 'commit.description()',
+	authorName: 'commit.author().name()',
+	timestamp: 'commit.committer().timestamp()',
+	empty: 'commit.empty()',
+	conflict: 'commit.conflict()',
+	operationId: 'operation.id().short(12)',
+	operationDescription: 'operation.description().first_line()',
+});
+
 export function parseLog(output: string): Revision[] {
 	return parseJsonLines<Revision>(output);
 }
@@ -102,6 +126,10 @@ export function parseDiff(output: string): FileChange[] {
 
 export function parseOpLog(output: string): Operation[] {
 	return parseJsonLines<Operation>(output);
+}
+
+export function parseEvolog(output: string): EvologEntry[] {
+	return parseJsonLines<EvologEntry>(output);
 }
 
 /** The revset expression that unambiguously names a revision. */

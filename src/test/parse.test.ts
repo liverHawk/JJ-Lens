@@ -5,12 +5,14 @@ import * as os from 'os';
 import * as path from 'path';
 import {
 	DIFF_TEMPLATE,
+	EVOLOG_TEMPLATE,
 	displayBookmarks,
 	fileset,
 	jsonTemplate,
 	LOG_TEMPLATE,
 	OP_TEMPLATE,
 	parseDiff,
+	parseEvolog,
 	parseLog,
 	parseOpLog,
 	relativeTime,
@@ -134,6 +136,15 @@ suite('templates against the real jj CLI', function () {
 			],
 		);
 		assert.strictEqual(jj('file', 'show', '-r', '@-', fileset('a b.txt')), 'one\n');
+	});
+
+	test('evolog template', () => {
+		const entries = parseEvolog(jj('evolog', '--no-graph', '-r', '@-', '-T', EVOLOG_TEMPLATE));
+		assert.ok(entries.length >= 2, 'describing a change adds an evolution entry');
+		assert.strictEqual(subject(entries[0].description), 'first');
+		assert.ok(entries.every((e) => e.changeId === entries[0].changeId));
+		assert.ok(new Set(entries.map((e) => e.commitId)).size === entries.length);
+		assert.ok(entries.every((e) => /^[0-9a-f]{12}$/.test(e.operationId)));
 	});
 
 	test('operation log template', () => {
