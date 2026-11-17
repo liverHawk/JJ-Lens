@@ -78,7 +78,7 @@ if [[ "$BUMP_TYPE" == "current" ]]; then
   TAG="v$VERSION"
   echo "==> [2/6] Using current version: $VERSION ($TAG)"
   if [[ "$USE_JJ" == "true" ]]; then
-    TARGET_COMMIT=$(jj log -r 'if(empty, @-, @)' --no-graph -T 'commit_id')
+    TARGET_COMMIT=$(jj log -r '@-' --no-graph -T 'commit_id')
     jj bookmark set main -r "$TARGET_COMMIT"
     if ! git rev-parse "$TAG" >/dev/null 2>&1; then
       echo "Creating git tag $TAG..."
