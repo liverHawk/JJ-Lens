@@ -1,8 +1,19 @@
+.agents/**
+.github/**
+.jj/**
 .vscode/**
 .vscode-test/**
 src/**
+scripts/**
+docs/**
+out/**
+!out/extension.js
+AGENTS.md
 .gitignore
+.npmrc
 .yarnrc
+pnpm-lock.yaml
+pnpm-workspace.yaml
 vsc-extension-quickstart.md
 **/tsconfig.json
 **/.oxlintrc.json
@@ -10,6 +21,3 @@ vsc-extension-quickstart.md
 **/*.map
 **/*.ts
 **/.vscode-test.*
-docs/**
-AGENTS.md
-**/.oxfmtrc.json
