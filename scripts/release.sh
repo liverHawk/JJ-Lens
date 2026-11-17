@@ -48,8 +48,8 @@ if [[ "$USE_JJ" == "true" ]]; then
     echo "Please move 'main' to the release target before releasing."
     exit 1
   fi
-  JJ_DIFF=$(jj diff --stat 2>/dev/null | head -n 1 || true)
-  if [[ -n "$JJ_DIFF" ]]; then
+  IS_EMPTY=$(jj log -r @ --no-graph -T 'empty' 2>/dev/null || echo "false")
+  if [[ "$IS_EMPTY" != "true" ]]; then
     echo "❌ Error: Working copy (@) has uncommitted changes. Please run 'jj commit' or 'jj new' before releasing."
     exit 1
   fi
