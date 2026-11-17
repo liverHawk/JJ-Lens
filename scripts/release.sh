@@ -3,21 +3,35 @@
 # Release Automation Script for jj-lens
 #
 # Usage:
-#   pnpm run release patch    # Bump patch (0.0.1 -> 0.0.2)
-#   pnpm run release minor    # Bump minor (0.0.1 -> 0.1.0)
-#   pnpm run release major    # Bump major (0.0.1 -> 1.0.0)
-#   pnpm run release current  # Release with current version in package.json
-#   pnpm run release 0.2.0    # Release with specific version
+#   pnpm run release patch                  # Bump patch (0.0.1 -> 0.0.2)
+#   pnpm run release minor                  # Bump minor (0.0.1 -> 0.1.0)
+#   pnpm run release major                  # Bump major (0.0.1 -> 1.0.0)
+#   pnpm run release current                # Release with current version in package.json
+#   pnpm run release 0.2.0                  # Release with specific version
+#   pnpm run release current --pre-release  # Publish as Beta / Pre-Release
+#   pnpm run release patch --pre-release    # Bump patch & publish as Beta / Pre-Release
 #
 # Documentation: docs/release.md
 # ==============================================================================
 set -e
 
-BUMP_TYPE="${1:-patch}"
+BUMP_TYPE="patch"
+PRE_RELEASE=false
 
-if [[ "$BUMP_TYPE" != "patch" && "$BUMP_TYPE" != "minor" && "$BUMP_TYPE" != "major" && "$BUMP_TYPE" != "current" && ! "$BUMP_TYPE" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+for arg in "$@"; do
+  case "$arg" in
+    --pre-release|--prerelease|--beta|beta)
+      PRE_RELEASE=true
+      ;;
+    *)
+      BUMP_TYPE="$arg"
+      ;;
+  esac
+done
+
+if [[ "$BUMP_TYPE" != "patch" && "$BUMP_TYPE" != "minor" && "$BUMP_TYPE" != "major" && "$BUMP_TYPE" != "current" && ! "$BUMP_TYPE" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "❌ Error: Invalid bump type or version: '$BUMP_TYPE'"
-  echo "Usage: pnpm run release [patch|minor|major|current|<version>]"
+  echo "Usage: pnpm run release [patch|minor|major|current|<version>] [--pre-release]"
   exit 1
 fi
 
@@ -95,7 +109,15 @@ else
 fi
 
 VSIX="jj-lens-$VERSION.vsix"
-echo "==> Target release: $TAG ($VSIX)"
+PRE_FLAG=""
+GH_PRE_FLAG=""
+if [[ "$PRE_RELEASE" == "true" ]]; then
+  PRE_FLAG="--pre-release"
+  GH_PRE_FLAG="--prerelease"
+  echo "==> Target release: $TAG ($VSIX) [Beta / Pre-Release]"
+else
+  echo "==> Target release: $TAG ($VSIX)"
+fi
 
 # 4. リモートへコミットとタグを push
 echo "==> [3/6] Pushing commit and tag to GitHub..."
@@ -109,7 +131,7 @@ fi
 
 # 5. vsix パッケージのビルド
 echo "==> [4/6] Packaging vsix..."
-pnpm exec vsce package --no-dependencies --out "$VSIX"
+pnpm exec vsce package --no-dependencies $PRE_FLAG --out "$VSIX"
 
 # 6. GitHub Releases に vsix を添付してリリース作成
 echo "==> [5/6] Creating GitHub Release..."
@@ -117,19 +139,19 @@ if gh release view "$TAG" >/dev/null 2>&1; then
   echo "GitHub Release $TAG already exists, uploading $VSIX asset..."
   gh release upload "$TAG" "$VSIX" --clobber
 else
-  gh release create "$TAG" "$VSIX" --title "$TAG" --generate-notes
+  gh release create "$TAG" "$VSIX" --title "$TAG" --generate-notes $GH_PRE_FLAG
 fi
 
 # 7. 各マーケットプレイスに公開
 echo "==> [6/6] Publishing to Marketplaces..."
 
 echo "--> Publishing to VS Code Marketplace..."
-if ! pnpm exec vsce publish --packagePath "$VSIX"; then
+if ! pnpm exec vsce publish $PRE_FLAG --packagePath "$VSIX"; then
   echo "⚠️ Warning: VS Code Marketplace publish failed. (Have you run 'pnpm exec vsce login purple-hawk'?)"
 fi
 
 echo "--> Publishing to Open VSX..."
-if ! pnpm exec ovsx publish "$VSIX"; then
+if ! pnpm exec ovsx publish $PRE_FLAG "$VSIX"; then
   echo "⚠️ Warning: Open VSX publish failed. (Have you run 'pnpm exec ovsx login'?)"
 fi
 

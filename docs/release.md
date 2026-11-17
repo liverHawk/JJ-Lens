@@ -23,6 +23,10 @@ pnpm run release current
 
 # 特定のバージョン番号を直接指定してリリース
 pnpm run release 0.2.0
+
+# Beta（Pre-Release）として公開する場合（--pre-release または --beta を付与）
+pnpm run release current --pre-release
+pnpm run release patch --pre-release
 ```
 
 ---
